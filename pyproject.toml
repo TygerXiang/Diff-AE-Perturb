@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "perturbdiff"
+version = "0.1.0"
+description = "Conditional diffusion model for CRISPRi perturbation response modeling."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "diff-project authors" }
+]
+dependencies = [
+  "torch>=2.1",
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "anndata>=0.9",
+  "scikit-learn>=1.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

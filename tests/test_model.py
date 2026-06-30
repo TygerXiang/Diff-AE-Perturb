@@ -1,0 +1,204 @@
+from pathlib import Path
+import sys
+import unittest
+
+import torch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from perturbdiff import DiffusionConfig, ModelConfig, PerturbDiffusionModel, TrainingLossConfig
+from perturbdiff.data import build_signature_gene_weights
+from perturbdiff.losses import gears_autofocus_direction_loss, weighted_mse_loss
+
+
+def small_config() -> ModelConfig:
+    return ModelConfig(
+        n_genes=20,
+        n_perturbations=3,
+        latent_dim=8,
+        encoder_hidden_dims=(16,),
+        denoiser_hidden_dims=(32,),
+        diffusion=DiffusionConfig(timesteps=20),
+    )
+
+
+class PerturbDiffusionModelTest(unittest.TestCase):
+    def test_training_losses_are_scalar_and_differentiable(self) -> None:
+        torch.manual_seed(1)
+        cfg = small_config()
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(8, cfg.n_genes)
+        perturbation_ids = torch.tensor([0, 1, 1, 2, 2, 3, 3, 0])
+
+        out = model.training_losses(x0, perturbation_ids)
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["prediction"].shape, x0.shape)
+        out["loss"].backward()
+        self.assertTrue(
+            any(p.grad is not None for p in model.parameters() if p.requires_grad)
+        )
+
+    def test_control_embedding_is_zero_and_counterfactual_shape_matches(self) -> None:
+        torch.manual_seed(2)
+        cfg = small_config()
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(4, cfg.n_genes)
+        ids = torch.zeros(4, dtype=torch.long)
+
+        condition = model.encode_condition(x0, ids)
+        self.assertTrue(
+            torch.allclose(condition["delta_base"], torch.zeros_like(condition["delta_base"]))
+        )
+        self.assertTrue(torch.allclose(condition["z_sem"], condition["z_pert"]))
+
+        samples = model.sample_counterfactual(
+            x_ctrl=x0[:2],
+            target_ids=torch.tensor([1, 2]),
+            steps=5,
+        )
+        self.assertEqual(samples.shape, x0[:2].shape)
+
+    def test_counterfactual_uses_z_basal_plus_scaled_delta(self) -> None:
+        torch.manual_seed(5)
+        cfg = small_config()
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(2, cfg.n_genes)
+        target_ids = torch.tensor([1, 2], dtype=torch.long)
+        guide_scales = torch.tensor([0.5, 2.0], dtype=torch.float32)
+
+        with torch.no_grad():
+            z_sem = model.encoder(x0)
+            expected = model.perturbation.counterfactual_latent(
+                z_sem,
+                target_ids,
+                source_ids=torch.zeros_like(target_ids),
+                guide_scales=guide_scales,
+            )
+            baseline = z_sem + model.perturbation.embedding(target_ids) * guide_scales.unsqueeze(-1)
+
+        self.assertTrue(torch.allclose(expected, baseline))
+
+    def test_x0_prediction_type_runs_end_to_end(self) -> None:
+        torch.manual_seed(3)
+        cfg = ModelConfig(
+            n_genes=20,
+            n_perturbations=3,
+            latent_dim=8,
+            encoder_hidden_dims=(16,),
+            denoiser_hidden_dims=(32,),
+            diffusion=DiffusionConfig(timesteps=20, prediction_type="x0"),
+        )
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(8, cfg.n_genes)
+        perturbation_ids = torch.tensor([0, 1, 1, 2, 2, 3, 3, 0])
+
+        out = model.training_losses(x0, perturbation_ids)
+        self.assertEqual(out["loss"].ndim, 0)
+        out["loss"].backward()
+
+        samples = model.sample_counterfactual(
+            x_ctrl=x0[:2],
+            target_ids=torch.tensor([1, 2]),
+            steps=5,
+        )
+        self.assertEqual(samples.shape, x0[:2].shape)
+
+    def test_weighted_mse_and_signature_weights(self) -> None:
+        weights = weighted_mse_loss(
+            torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+            torch.tensor([[1.0, 1.0], [2.0, 2.0]]),
+            torch.tensor([[1.0, 2.0], [1.0, 1.0]]),
+        )
+        self.assertEqual(weights.ndim, 0)
+
+        signature_weights = build_signature_gene_weights(
+            ("A", "B", "C"),
+            {"A": 1, "B": 2},
+            summary_path=None,
+            signature_gene_weight=2.0,
+        )
+        self.assertEqual(signature_weights.shape, (3, 3))
+        self.assertTrue(torch.allclose(signature_weights, torch.ones_like(signature_weights)))
+
+    def test_gears_autofocus_direction_loss_is_scalar(self) -> None:
+        loss = gears_autofocus_direction_loss(
+            torch.tensor([[2.0, 0.5], [0.0, 3.0]]),
+            torch.tensor([[1.0, 1.0], [1.0, 2.0]]),
+            torch.ones(2, 2),
+            control_mean=torch.tensor([1.0, 1.0]),
+            gamma=2.0,
+            direction_lambda=1e-3,
+        )
+
+        self.assertEqual(loss.ndim, 0)
+        self.assertGreater(float(loss), 0.0)
+
+    def test_gears_reconstruction_loss_runs_end_to_end(self) -> None:
+        torch.manual_seed(4)
+        cfg = ModelConfig(
+            n_genes=20,
+            n_perturbations=3,
+            latent_dim=8,
+            encoder_hidden_dims=(16,),
+            denoiser_hidden_dims=(32,),
+            diffusion=DiffusionConfig(timesteps=20, prediction_type="x0"),
+            losses=TrainingLossConfig(reconstruction_loss="gears"),
+        )
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(8, cfg.n_genes)
+        model.set_control_expression_mean(x0[:2].mean(dim=0))
+        perturbation_ids = torch.tensor([0, 1, 1, 2, 2, 3, 3, 0])
+
+        out = model.training_losses(x0, perturbation_ids)
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["eval_mse_loss"].ndim, 0)
+        out["loss"].backward()
+
+    def test_direction_align_loss_prefers_same_target_cosine(self) -> None:
+        torch.manual_seed(6)
+        cfg = ModelConfig(
+            n_genes=20,
+            n_perturbations=3,
+            latent_dim=8,
+            encoder_hidden_dims=(16,),
+            denoiser_hidden_dims=(32,),
+            diffusion=DiffusionConfig(timesteps=20, prediction_type="x0"),
+            losses=TrainingLossConfig(lambda_direction_align=1.0),
+        )
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(6, cfg.n_genes)
+        perturbation_ids = torch.tensor([0, 1, 1, 2, 2, 0])
+        target_ids = torch.tensor([0, 1, 1, 2, 2, 0])
+
+        out = model.training_losses(x0, perturbation_ids, target_ids)
+
+        self.assertEqual(out["direction_align_loss"].ndim, 0)
+        self.assertGreaterEqual(float(out["direction_align_loss"]), 0.0)
+
+    def test_latent_mean_shift_initializes_perturbation_embedding(self) -> None:
+        cfg = small_config()
+        model = PerturbDiffusionModel(cfg)
+        z_basal = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+                [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
+                [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+            ]
+        )
+        perturbation_ids = torch.tensor([0, 0, 1, 1])
+
+        init_stats = model.initialize_perturbation_from_latent_shift(z_basal, perturbation_ids)
+
+        self.assertEqual(init_stats["counts"][0], 2)
+        self.assertEqual(init_stats["counts"][1], 2)
+        self.assertTrue(torch.allclose(model.perturbation.embedding.weight[0], torch.zeros(8)))
+        expected_delta = torch.full((8,), 3.0)
+        self.assertTrue(torch.allclose(model.perturbation.embedding.weight[1], expected_delta))
+        self.assertTrue(torch.allclose(model.perturbation.embedding.weight[2], torch.zeros(8)))
+
+
+if __name__ == "__main__":
+    unittest.main()
