@@ -21,6 +21,22 @@ class TrainingLossConfig:
 
 
 @dataclass(frozen=True)
+class GuideFeatureEncoderConfig:
+    enabled: bool = False
+    feature_dim: int = 0
+    activity_source: str = "predicted"
+    architecture: str = "cnn"
+    hidden_dims: tuple[int, ...] = (256, 256)
+    dropout: float = 0.0
+    sequence_length: int = 26
+    cnn_channels: tuple[int, ...] = (32, 32)
+    cnn_kernel_size: int = 4
+    cnn_dropout: float = 0.25
+    lambda_strength: float = 0.0
+    doser_type: str = "sigm"
+
+
+@dataclass(frozen=True)
 class ModelConfig:
     n_genes: int
     n_perturbations: int
@@ -30,3 +46,4 @@ class ModelConfig:
     dropout: float = 0.0
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
     losses: TrainingLossConfig = field(default_factory=TrainingLossConfig)
+    guide_encoder: GuideFeatureEncoderConfig = field(default_factory=GuideFeatureEncoderConfig)

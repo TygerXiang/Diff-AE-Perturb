@@ -53,6 +53,194 @@ strength experiments:
 - `training_losses()` computes `direction_align_loss`
 - `train.py` and `train_with_split.py` pass `target_ids` into the model
 
+### Predicted sgRNA Activity Conditioning Branch
+
+Current active Git branch:
+
+- `codex/predicted-guide-activity-conditioning`
+
+This branch adds predicted sgRNA activity conditioning to the conditional DDIM
+path. The default model behavior remains unchanged unless
+`ModelConfig.guide_encoder.enabled` is set to `True`.
+
+New implementation pieces:
+
+- `GuideFeatureEncoderConfig` in `src/perturbdiff/config.py`
+- `GuideStrengthEncoder` and Table_S8-style guide feature utilities in
+  `src/perturbdiff/guide_features.py`
+- target-specific `GeneralizedSigmoid` doser in `src/perturbdiff/modules.py`
+- `PerturbDiffusionModel.training_losses()` and `sample_counterfactual()` now
+  accept optional `guide_features`
+- `PerturbationDataset` can retain raw `perturbation_labels` and return
+  `guide_features` / `guide_activity_targets` in dataloader batches
+
+Activity conditioning semantics in this branch:
+
+1. `GuideStrengthEncoder` predicts a non-negative guide activity / strength
+   scalar from Table_S8 notebook-style `(genome input, sgRNA input)` CNN
+   features.
+2. `GeneralizedSigmoid(strength, target_id)` maps strength to a target-specific
+   scale.
+3. The scale multiplies the learned perturbation delta.
+4. The resulting condition latent is used through the existing `z_pert` DDIM
+   denoiser input.
+
+Training entrypoint in this copy:
+
+- `scripts/train_with_split.py`
+
+Predicted activity flags:
+
+- `--activity-source predicted`
+- `--guide-activity-cnn-table <Table_S8_machine_learning_input.txt>`
+- optional supervision:
+  `--activity-table <Table_S16_perturb-seq_screen_phenotypes.txt>`
+- `--activity-col relative_activity_day10`
+- `--guide-sequence-length 26`
+- `--guide-strength-lambda 0.1`
+
+Important limitation versus `C:\Users\Admin\myprojects\diff-project`:
+
+- this copy supports the predicted CNN activity mode needed for this branch
+- it does not yet include the full reference project's direct-oracle activity
+  mode, checkpoint-init/freeze-delta flags, or full benchmark script family
+
+### Activity-conditioning branch benchmark state
+
+New lightweight benchmark helper added in this branch:
+
+- `scripts/benchmark_activity_conditioning.py`
+
+Purpose:
+
+- compare guide-level counterfactual generation before/after predicted activity
+  conditioning
+- use test-set control cells as shared source inputs
+- evaluate real guide test cells against generated cells
+- report:
+  - mean-profile `mse` (lower is better)
+  - full-gene `pcc_delta` on mean shifts (higher is better)
+  - simplified guide-level `e_distance` (lower is better)
+
+Reference benchmark note:
+
+- the full `C:\Users\Admin\myprojects\diff-project\scripts\evaluate_benchmark.py`
+  guide-level benchmark was attempted against this branch by pointing its
+  `_REPO` to `C:\Users\Admin\myprojects\Diff-AE-Perturb`
+- that full run timed out after 30 minutes before writing outputs
+- for this branch, use the lightweight script for fast smoke comparisons, and
+  reserve the full reference benchmark for longer unattended runs
+
+Current quick before/after experiment:
+
+- split:
+  `C:\Users\Admin\myprojects\diff-project\reproducibility\prepared\splits`
+- perturbation column:
+  `guide_identity`
+- target strategy:
+  `raw`
+- epochs:
+  `20`
+- device:
+  `cuda`
+- predicted activity feature table:
+  `C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM\Table_S8_machine_learning_input.txt`
+- activity supervision table:
+  `C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM\Table_S16_perturb-seq_screen_phenotypes.txt`
+- activity column:
+  `relative_activity_day10`
+
+Run outputs:
+
+- no activity:
+  `C:\Users\Admin\myprojects\Diff-AE-Perturb\runs\benchmark_activity_branch_none_20ep`
+- predicted activity:
+  `C:\Users\Admin\myprojects\Diff-AE-Perturb\runs\benchmark_activity_branch_predicted_day10_20ep`
+- lightweight benchmark:
+  `C:\Users\Admin\myprojects\Diff-AE-Perturb\runs\benchmarks\activity_branch_20ep_light_summary.csv`
+
+Training scalar results:
+
+- no activity:
+  - `best_epoch = 20`
+  - `best_val_loss = 0.038052`
+  - `test_loss = 0.038414`
+- predicted activity:
+  - `best_epoch = 20`
+  - `best_val_loss = 0.063606`
+  - `test_loss = 0.063633`
+  - note: total loss includes `0.1 * guide_strength_loss`; at epoch 20,
+    `val_eval_mse = 0.054792` and `val_strength = 0.088140`
+
+Lightweight guide-level benchmark result:
+
+- output prefix:
+  `activity_branch_20ep_light`
+- evaluated guides:
+  `20`
+- DDIM steps:
+  `5`
+- max control cells:
+  `128`
+
+Summary:
+
+- `no_activity_20ep`
+  - `mse = 0.010209`
+  - `pcc_delta = 0.109135`
+  - `e_distance = 1.489972`
+- `predicted_activity_20ep`
+  - `mse = 0.009001`
+  - `pcc_delta = 0.298359`
+  - `e_distance = 1.905398`
+
+Current interpretation:
+
+- in this short 20-epoch smoke benchmark, predicted activity improves
+  mean-profile fit and mean-shift correlation on the sampled guides
+- predicted activity worsens the simplified distribution-distance metric
+- because this is a short, limited-guide smoke run with 5-step DDIM, it should
+  not be treated as a final benchmark conclusion
+
+### 200ep benchmark update
+
+200ep training runs have now been completed for the same split:
+
+- `runs/benchmark_activity_branch_none_200ep`
+- `runs/benchmark_activity_branch_predicted_day10_200ep`
+
+The 200ep benchmark was run in chunks to avoid timeout:
+
+- helper script:
+  `scripts/benchmark_activity_conditioning.py`
+- chunk size:
+  `20` guides
+- DDIM steps:
+  `5`
+- evaluated guides:
+  `84`
+
+Combined 200ep guide-level results:
+
+- `no_activity_200ep`
+  - `mse = 0.012284`
+  - `pcc_delta = 0.073446`
+  - `e_distance = 0.976192`
+- `predicted_activity_200ep`
+  - `mse = 0.006568`
+  - `pcc_delta = 0.462830`
+  - `e_distance = 0.793576`
+
+Interpretation:
+
+- on this 84-guide chunked benchmark, predicted activity clearly improves
+  both mean-profile fit and mean-shift correlation
+- it also improves the simplified distribution distance
+- the 200ep activity-conditioned model therefore looks materially better than
+  the no-activity control on this quick guide-level benchmark
+- the result is stronger than the 20ep smoke run and is the current best
+  evidence in this branch for predicted activity conditioning helping
+
 The implemented direction-alignment behavior in this snapshot is:
 
 - controls are excluded via `target_ids != 0`

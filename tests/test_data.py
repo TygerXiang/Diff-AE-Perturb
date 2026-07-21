@@ -43,7 +43,15 @@ class PerturbationDataTest(unittest.TestCase):
     def test_dataset_yields_model_batch_fields(self) -> None:
         expression = np.ones((3, 5), dtype=np.float32)
         ids = torch.tensor([0, 1, 2])
-        dataset = PerturbationDataset(expression, ids)
+        guide_features = torch.ones(3, 4)
+        guide_activity_targets = torch.tensor([0.0, 0.5, 0.8])
+        dataset = PerturbationDataset(
+            expression,
+            ids,
+            perturbation_labels=["control", "TP53_sg1", "MYC_sg1"],
+            guide_features=guide_features,
+            guide_activity_targets=guide_activity_targets,
+        )
 
         item = dataset[1]
 
@@ -51,6 +59,9 @@ class PerturbationDataTest(unittest.TestCase):
         self.assertEqual(dataset.n_perturbations, 2)
         self.assertEqual(item["x0"].shape, (5,))
         self.assertEqual(item["perturbation_ids"].dtype, torch.long)
+        self.assertEqual(item["perturbation_label"], "TP53_sg1")
+        self.assertEqual(item["guide_features"].shape, (4,))
+        self.assertEqual(item["guide_activity_targets"].ndim, 0)
         self.assertNotIn("response_proxy", item)
 
 

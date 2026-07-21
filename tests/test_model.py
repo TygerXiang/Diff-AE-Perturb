@@ -6,8 +6,9 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from perturbdiff import DiffusionConfig, ModelConfig, PerturbDiffusionModel, TrainingLossConfig
+from perturbdiff import DiffusionConfig, GuideFeatureEncoderConfig, ModelConfig, PerturbDiffusionModel, TrainingLossConfig
 from perturbdiff.data import build_signature_gene_weights
+from perturbdiff.guide_features import guide_cnn_feature_dim
 from perturbdiff.losses import gears_autofocus_direction_loss, weighted_mse_loss
 
 
@@ -198,6 +199,96 @@ class PerturbDiffusionModelTest(unittest.TestCase):
         expected_delta = torch.full((8,), 3.0)
         self.assertTrue(torch.allclose(model.perturbation.embedding.weight[1], expected_delta))
         self.assertTrue(torch.allclose(model.perturbation.embedding.weight[2], torch.zeros(8)))
+
+    def test_predicted_activity_cnn_runs_inside_model(self) -> None:
+        torch.manual_seed(7)
+        feature_dim = guide_cnn_feature_dim(sequence_length=26)
+        cfg = ModelConfig(
+            n_genes=12,
+            n_perturbations=2,
+            latent_dim=4,
+            encoder_hidden_dims=(8,),
+            denoiser_hidden_dims=(16,),
+            diffusion=DiffusionConfig(timesteps=20),
+            guide_encoder=GuideFeatureEncoderConfig(
+                enabled=True,
+                feature_dim=feature_dim,
+                activity_source="predicted",
+                architecture="cnn",
+                sequence_length=26,
+                cnn_channels=(8, 8),
+                cnn_kernel_size=3,
+                cnn_dropout=0.1,
+                lambda_strength=0.5,
+            ),
+        )
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(3, cfg.n_genes)
+        perturbation_ids = torch.tensor([0, 1, 2])
+        guide_features = torch.randn(3, feature_dim)
+        guide_activity_targets = torch.rand(3)
+
+        out = model.training_losses(
+            x0,
+            perturbation_ids,
+            target_ids=perturbation_ids,
+            guide_features=guide_features,
+            guide_activity_targets=guide_activity_targets,
+        )
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["guide_strength_loss"].ndim, 0)
+        out["loss"].backward()
+
+        samples = model.sample_counterfactual(
+            x_ctrl=x0[:2],
+            target_ids=torch.tensor([1, 2]),
+            guide_features=guide_features[:2],
+            steps=5,
+        )
+        self.assertEqual(samples.shape, x0[:2].shape)
+
+    def test_predicted_activity_changes_target_delta_magnitude(self) -> None:
+        torch.manual_seed(8)
+        cfg = ModelConfig(
+            n_genes=10,
+            n_perturbations=2,
+            latent_dim=4,
+            encoder_hidden_dims=(8,),
+            denoiser_hidden_dims=(16,),
+            guide_encoder=GuideFeatureEncoderConfig(
+                enabled=True,
+                feature_dim=1,
+                activity_source="predicted",
+                architecture="mlp",
+                hidden_dims=(),
+                doser_type="linear",
+            ),
+        )
+        model = PerturbDiffusionModel(cfg)
+        with torch.no_grad():
+            model.perturbation.embedding.weight[1].fill_(2.0)
+            self.assertIsNotNone(model.guide_strength)
+            linear = model.guide_strength.network[0]
+            self.assertIsInstance(linear, torch.nn.Linear)
+            linear.weight.fill_(1.0)
+            linear.bias.zero_()
+
+        x0 = torch.randn(2, cfg.n_genes)
+        perturbation_ids = torch.tensor([1, 1])
+        guide_features = torch.tensor([[0.25], [1.0]])
+
+        condition = model.encode_condition(
+            x0,
+            perturbation_ids,
+            target_ids=perturbation_ids,
+            guide_features=guide_features,
+        )
+
+        self.assertLess(
+            float(condition["delta"][0].norm().detach()),
+            float(condition["delta"][1].norm().detach()),
+        )
 
 
 if __name__ == "__main__":

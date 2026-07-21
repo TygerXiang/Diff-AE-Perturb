@@ -291,9 +291,13 @@ def encode_perturbation_labels(
 
     ids: list[int] = []
     for raw_label in labels:
+        # The whole project treats control as the reference condition, so we
+        # give every control-like label the same reserved id: 0.
         if is_control_label(raw_label, control_labels=control_labels):
             ids.append(0)
             continue
+        # target_strategy decides whether different sgRNAs for the same target
+        # should collapse into one class or stay as separate conditions.
         target = extract_target_label(raw_label, strategy=target_strategy)
         if target not in mapping:
             mapping[target] = len(mapping) + 1
@@ -309,8 +313,11 @@ class PerturbationDataset(Dataset):
         expression: Any,
         perturbation_ids: Sequence[int] | torch.Tensor,
         *,
+        perturbation_labels: Sequence[str] | None = None,
         target_ids: Sequence[int] | torch.Tensor | None = None,
         response_proxy: Sequence[float] | torch.Tensor | None = None,
+        guide_features: Sequence[Sequence[float]] | torch.Tensor | None = None,
+        guide_activity_targets: Sequence[float] | torch.Tensor | None = None,
         gene_names: Sequence[str] | None = None,
     ) -> None:
         n_cells = int(expression.shape[0])
@@ -318,6 +325,9 @@ class PerturbationDataset(Dataset):
             raise ValueError("expression and perturbation_ids must have the same length")
         self.expression = expression
         self.perturbation_ids = torch.as_tensor(perturbation_ids, dtype=torch.long)
+        self.perturbation_labels = None if perturbation_labels is None else tuple(str(v) for v in perturbation_labels)
+        # target_ids can be coarser than perturbation_ids. For example, several
+        # sgRNAs may map to different perturbation ids but share one target id.
         self.target_ids = (
             self.perturbation_ids.clone()
             if target_ids is None
@@ -328,13 +338,29 @@ class PerturbationDataset(Dataset):
             if response_proxy is None
             else torch.as_tensor(response_proxy, dtype=torch.float32)
         )
+        self.guide_features = (
+            None
+            if guide_features is None
+            else torch.as_tensor(guide_features, dtype=torch.float32)
+        )
+        self.guide_activity_targets = (
+            None
+            if guide_activity_targets is None
+            else torch.as_tensor(guide_activity_targets, dtype=torch.float32)
+        )
         self._gene_names = None if gene_names is None else tuple(str(name) for name in gene_names)
         if self._gene_names is not None and len(self._gene_names) != int(self.expression.shape[1]):
             raise ValueError("gene_names must match expression width")
+        if self.perturbation_labels is not None and len(self.perturbation_labels) != len(self):
+            raise ValueError("perturbation_labels must match expression length")
         if len(self.target_ids) != len(self):
             raise ValueError("target_ids must match expression length")
         if self.response_proxy is not None and len(self.response_proxy) != len(self):
             raise ValueError("response_proxy must match expression length")
+        if self.guide_features is not None and len(self.guide_features) != len(self):
+            raise ValueError("guide_features must match expression length")
+        if self.guide_activity_targets is not None and len(self.guide_activity_targets) != len(self):
+            raise ValueError("guide_activity_targets must match expression length")
 
     def __len__(self) -> int:
         return int(self.perturbation_ids.shape[0])
@@ -353,6 +379,9 @@ class PerturbationDataset(Dataset):
 
     def _row_to_tensor(self, idx: int) -> torch.Tensor:
         row = self.expression[idx]
+        # anndata / scipy sparse rows expose .toarray(); numpy rows do not.
+        # This small conversion lets the rest of the model always see a dense
+        # 1D float tensor, which is much easier for beginners to reason about.
         if hasattr(row, "toarray"):
             row = row.toarray().squeeze(0)
         return torch.as_tensor(np.asarray(row), dtype=torch.float32).flatten()
@@ -363,8 +392,14 @@ class PerturbationDataset(Dataset):
             "perturbation_ids": self.perturbation_ids[idx],
             "target_ids": self.target_ids[idx],
         }
+        if self.perturbation_labels is not None:
+            item["perturbation_label"] = self.perturbation_labels[idx]
         if self.response_proxy is not None:
             item["response_proxy"] = self.response_proxy[idx]
+        if self.guide_features is not None:
+            item["guide_features"] = self.guide_features[idx]
+        if self.guide_activity_targets is not None:
+            item["guide_activity_targets"] = self.guide_activity_targets[idx]
         return item
 
 
@@ -407,6 +442,7 @@ def load_h5ad_perturbation_dataset(
         PerturbationDataset(
             adata.X,
             perturbation_ids,
+            perturbation_labels=labels,
             target_ids=target_ids,
             response_proxy=response_proxy,
             gene_names=adata.var_names.astype(str).to_list(),
@@ -489,6 +525,7 @@ def load_10x_perturbation_dataset(
         PerturbationDataset(
             expression,
             perturbation_ids,
+            perturbation_labels=labels,
             target_ids=target_ids,
             response_proxy=response_proxy,
             gene_names=gene_names,

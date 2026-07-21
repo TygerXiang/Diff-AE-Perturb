@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sys
 
+import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
@@ -13,12 +14,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from perturbdiff import (
     DiffusionConfig,
+    GuideFeatureEncoderConfig,
     ModelConfig,
     PerturbDiffusionModel,
     TrainingLossConfig,
     build_virtual_guide_scales_from_embedding,
 )
-from perturbdiff.data import CONTROL_PATTERNS, build_signature_gene_weights, load_h5ad_perturbation_dataset
+from perturbdiff.data import (
+    CONTROL_PATTERNS,
+    build_signature_gene_weights,
+    load_guide_activity_lookup,
+    load_h5ad_perturbation_dataset,
+)
+from perturbdiff.guide_features import (
+    build_notebook_cnn_feature_tensor,
+    canonical_guide_keys,
+    find_record_for_label,
+    guide_cnn_feature_dim,
+    load_guide_feature_records,
+)
 
 
 def parse_hidden_dims(value: str) -> tuple[int, ...]:
@@ -77,6 +91,21 @@ def parse_args() -> argparse.Namespace:
         help="Weight for same-target guide direction alignment cosine loss.",
     )
     parser.add_argument("--guide-library-table", action="append", default=None, help="Mismatch library table(s) used to resolve each guide's fully matched sgRNA.")
+    parser.add_argument("--activity-source", choices=("none", "predicted"), default="none")
+    parser.add_argument("--guide-activity-cnn-table", default=None, help="Table_S8-style guide activity CNN input table.")
+    parser.add_argument("--activity-table", default=None, help="Optional guide activity table for strength supervision.")
+    parser.add_argument(
+        "--activity-col",
+        choices=("relative_activity_day5", "relative_activity_day10"),
+        default="relative_activity_day10",
+    )
+    parser.add_argument("--guide-sequence-length", type=int, default=26)
+    parser.add_argument("--guide-strength-hidden-dims", default="64,64")
+    parser.add_argument("--guide-strength-dropout", type=float, default=0.0)
+    parser.add_argument("--guide-strength-cnn-channels", default="32,32")
+    parser.add_argument("--guide-strength-cnn-kernel-size", type=int, default=4)
+    parser.add_argument("--guide-strength-cnn-dropout", type=float, default=0.25)
+    parser.add_argument("--guide-strength-lambda", type=float, default=0.1)
     parser.add_argument("--signature-summary-json", help="Optional signature summary JSON for weighted reconstruction.")
     parser.add_argument("--signature-gene-weight", type=float, default=1.0)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -109,6 +138,112 @@ def load_dataset(
     )
 
 
+def attach_predicted_activity_features(
+    dataset,
+    *,
+    guide_activity_cnn_table: str | Path,
+    sequence_length: int,
+    activity_lookup: dict[str, float] | None,
+) -> dict[str, object]:
+    records_by_key = load_guide_feature_records([guide_activity_cnn_table])
+    if not records_by_key:
+        raise ValueError("Guide activity CNN table was provided, but no records were loaded")
+    labels = getattr(dataset, "perturbation_labels", None)
+    if labels is None:
+        raise ValueError("Dataset is missing raw perturbation_labels required for guide activity features")
+
+    feature_dim = guide_cnn_feature_dim(sequence_length=sequence_length)
+    feature_rows: list[np.ndarray] = []
+    activity_targets: list[float] = []
+    matched_feature_cells = 0
+    missing_feature_cells = 0
+    matched_activity_cells = 0
+    missing_activity_cells = 0
+    for pert_id, label in zip(dataset.perturbation_ids.tolist(), labels):
+        if int(pert_id) == 0:
+            feature_rows.append(np.zeros(feature_dim, dtype=np.float32))
+            activity_targets.append(0.0)
+            continue
+        record = find_record_for_label(str(label), records_by_key)
+        if record is None:
+            feature_rows.append(np.zeros(feature_dim, dtype=np.float32))
+            missing_feature_cells += 1
+        else:
+            feature_rows.append(
+                build_notebook_cnn_feature_tensor(record, sequence_length=sequence_length).reshape(-1)
+            )
+            matched_feature_cells += 1
+        if activity_lookup is None:
+            activity_targets.append(0.0)
+            continue
+        value = None
+        for key in canonical_guide_keys(str(label)):
+            value = activity_lookup.get(key)
+            if value is not None:
+                break
+        if value is None:
+            activity_targets.append(0.0)
+            missing_activity_cells += 1
+        else:
+            activity_targets.append(float(value))
+            matched_activity_cells += 1
+
+    dataset.guide_features = torch.from_numpy(np.stack(feature_rows, axis=0))
+    dataset.guide_activity_targets = (
+        torch.tensor(activity_targets, dtype=torch.float32)
+        if activity_lookup is not None
+        else None
+    )
+    return {
+        "mode": "predicted",
+        "feature_dim": feature_dim,
+        "matched_feature_cells": matched_feature_cells,
+        "missing_feature_cells": missing_feature_cells,
+        "matched_activity_cells": matched_activity_cells,
+        "missing_activity_cells": missing_activity_cells,
+        "n_records": len(records_by_key),
+        "activity_supervision": activity_lookup is not None,
+    }
+
+
+def prepare_activity_conditioning(
+    datasets: list[object],
+    *,
+    activity_source: str,
+    guide_activity_cnn_table: str | None,
+    activity_table: str | None,
+    activity_col: str,
+    sequence_length: int,
+) -> dict[str, object]:
+    if activity_source == "none":
+        return {"mode": "none", "feature_dim": 0, "activity_supervision": False}
+    if not guide_activity_cnn_table:
+        raise ValueError("Predicted activity mode requires --guide-activity-cnn-table")
+    activity_lookup = (
+        load_guide_activity_lookup(activity_table, activity_col=activity_col)
+        if activity_table is not None
+        else None
+    )
+    summary = None
+    for dataset in datasets:
+        current = attach_predicted_activity_features(
+            dataset,
+            guide_activity_cnn_table=guide_activity_cnn_table,
+            sequence_length=sequence_length,
+            activity_lookup=activity_lookup,
+        )
+        if summary is None:
+            summary = current
+    if summary is None:
+        raise ValueError("No datasets were provided for activity conditioning")
+    return {
+        **summary,
+        "activity_col": activity_col if activity_lookup is not None else None,
+        "activity_table": activity_table,
+        "guide_activity_cnn_table": guide_activity_cnn_table,
+    }
+
+
 @torch.no_grad()
 def initialize_perturbation_embeddings(
     model: PerturbDiffusionModel,
@@ -130,6 +265,8 @@ def initialize_perturbation_embeddings(
         ids.append(perturbation_ids.detach().cpu())
     z_sem_all = torch.cat(zs, dim=0)
     perturbation_ids_all = torch.cat(ids, dim=0)
+    # We initialize from the whole training set instead of one batch because we
+    # want a stable estimate of each perturbation's average latent shift.
     return model.initialize_perturbation_from_latent_shift(
         z_sem_all.to(device),
         perturbation_ids_all.to(device),
@@ -174,6 +311,7 @@ def evaluate_model(
         "eval_mse_loss": 0.0,
         "semantic_align_loss": 0.0,
         "direction_align_loss": 0.0,
+        "guide_strength_loss": 0.0,
     }
     batches = 0
     with torch.no_grad():
@@ -182,6 +320,8 @@ def evaluate_model(
                 batch["x0"].to(device),
                 batch["perturbation_ids"].to(device),
                 batch["target_ids"].to(device),
+                batch.get("guide_features", None).to(device) if "guide_features" in batch else None,
+                batch.get("guide_activity_targets", None).to(device) if "guide_activity_targets" in batch else None,
             )
             for key in running:
                 running[key] += float(out[key].detach().cpu())
@@ -253,6 +393,20 @@ def main() -> None:
         val_dataset = Subset(full_dataset, val_idx)
         test_dataset = Subset(full_dataset, test_idx)
 
+    base_datasets: list[object] = []
+    for dataset in (train_dataset, val_dataset, test_dataset):
+        base = dataset.dataset if isinstance(dataset, Subset) else dataset
+        if all(base is not existing for existing in base_datasets):
+            base_datasets.append(base)
+    conditioning_summary = prepare_activity_conditioning(
+        base_datasets,
+        activity_source=args.activity_source,
+        guide_activity_cnn_table=args.guide_activity_cnn_table,
+        activity_table=args.activity_table,
+        activity_col=args.activity_col,
+        sequence_length=args.guide_sequence_length,
+    )
+
     n_genes = train_dataset.dataset.n_genes if isinstance(train_dataset, Subset) else train_dataset.n_genes
     gene_names = (
         train_dataset.dataset.gene_names
@@ -281,6 +435,19 @@ def main() -> None:
             lambda_semantic_align=args.lambda_semantic_align,
             lambda_direction_align=args.lambda_direction_align,
         ),
+        guide_encoder=GuideFeatureEncoderConfig(
+            enabled=args.activity_source == "predicted",
+            feature_dim=int(conditioning_summary["feature_dim"]),
+            activity_source="predicted",
+            architecture="cnn",
+            hidden_dims=parse_hidden_dims(args.guide_strength_hidden_dims),
+            dropout=args.guide_strength_dropout,
+            sequence_length=args.guide_sequence_length,
+            cnn_channels=parse_hidden_dims(args.guide_strength_cnn_channels),
+            cnn_kernel_size=args.guide_strength_cnn_kernel_size,
+            cnn_dropout=args.guide_strength_cnn_dropout,
+            lambda_strength=args.guide_strength_lambda if args.activity_table else 0.0,
+        ),
     )
     device = torch.device(args.device)
     model = PerturbDiffusionModel(cfg).to(device)
@@ -293,6 +460,10 @@ def main() -> None:
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             device=device,
+        )
+    if args.activity_source == "predicted":
+        model.initialize_guide_strength_directions_from_perturbation_embeddings(
+            torch.arange(0, len(mapping) + 1, dtype=torch.long, device=device)
         )
     signature_gene_weights = build_signature_gene_weights(
         gene_names,
@@ -311,6 +482,8 @@ def main() -> None:
         model.set_control_expression_mean(control_expression_mean)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
+    # train/val/test loaders are kept separate because they answer different
+    # questions: optimization, model selection, and final reporting.
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
@@ -331,10 +504,14 @@ def main() -> None:
         batches = 0
         for batch in train_loader:
             optimizer.zero_grad(set_to_none=True)
+            # training_losses returns both the scalar objective and extra
+            # diagnostics, which is convenient for research experiments.
             out = model.training_losses(
                 batch["x0"].to(device),
                 batch["perturbation_ids"].to(device),
                 batch["target_ids"].to(device),
+                batch.get("guide_features", None).to(device) if "guide_features" in batch else None,
+                batch.get("guide_activity_targets", None).to(device) if "guide_activity_targets" in batch else None,
             )
             out["loss"].backward()
             optimizer.step()
@@ -351,6 +528,7 @@ def main() -> None:
             "val_eval_mse_loss": val_metrics["eval_mse_loss"],
             "val_semantic_align_loss": val_metrics["semantic_align_loss"],
             "val_direction_align_loss": val_metrics["direction_align_loss"],
+            "val_guide_strength_loss": val_metrics["guide_strength_loss"],
         }
         history.append(record)
         print(
@@ -358,7 +536,8 @@ def main() -> None:
             f"val_loss={val_metrics['loss']:.6f} "
             f"val_eval_mse={val_metrics['eval_mse_loss']:.6f} "
             f"val_sem_align={val_metrics['semantic_align_loss']:.6f} "
-            f"val_dir_align={val_metrics['direction_align_loss']:.6f}"
+            f"val_dir_align={val_metrics['direction_align_loss']:.6f} "
+            f"val_strength={val_metrics['guide_strength_loss']:.6f}"
         )
 
         if val_metrics["loss"] < best_val:
@@ -424,6 +603,8 @@ def main() -> None:
         "direction_lambda": args.direction_lambda,
         "guide_library_tables": args.guide_library_table,
         "virtual_s_enabled": guide_scales is not None,
+        "conditioning_summary": conditioning_summary,
+        "activity_source": args.activity_source,
         "device": str(device),
     }
     with (output_dir / "metrics.json").open("w", encoding="utf-8") as handle:

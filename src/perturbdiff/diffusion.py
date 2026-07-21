@@ -7,6 +7,8 @@ from .config import DiffusionConfig
 
 
 def _extract(values: torch.Tensor, timesteps: torch.Tensor, x_shape: torch.Size) -> torch.Tensor:
+    # values stores one scalar per diffusion step; gather picks the scalar for
+    # each sample in the batch, then reshape makes broadcasting with x easy.
     out = values.gather(0, timesteps)
     return out.reshape(timesteps.shape[0], *((1,) * (len(x_shape) - 1)))
 
@@ -57,6 +59,8 @@ class GaussianDiffusion(nn.Module):
             noise = torch.randn_like(x0)
         sqrt_alpha_bar = _extract(self.sqrt_alphas_cumprod, timesteps, x0.shape)
         sqrt_one_minus = _extract(self.sqrt_one_minus_alphas_cumprod, timesteps, x0.shape)
+        # Forward diffusion mixes clean signal and Gaussian noise according to
+        # the chosen timestep. This produces the noisy training input x_t.
         return sqrt_alpha_bar * x0 + sqrt_one_minus * noise, noise
 
     def predict_x0_from_eps(
@@ -124,6 +128,9 @@ class GaussianDiffusion(nn.Module):
         for idx in range(len(time_seq) - 1):
             t_value = time_seq[idx]
             prev_t_value = time_seq[idx + 1]
+            # DDIM sampling walks from a noisy state toward timestep 0. Each
+            # loop iteration predicts x0 / eps at the current step, then moves
+            # deterministically to the previous step.
             t = torch.full((batch_size,), int(t_value.item()), device=device, dtype=torch.long)
             prev_t = torch.full(
                 (batch_size,),

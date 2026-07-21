@@ -15,6 +15,8 @@ def weighted_mse_loss(
         return error.mean()
     if weights.shape != error.shape:
         raise ValueError("weights must match prediction/target shape")
+    # Normalize by the total weight of each sample so larger raw weight sums do
+    # not automatically dominate the batch loss.
     per_sample_weight = weights.sum(dim=-1).clamp_min(eps)
     per_sample = (error * weights).sum(dim=-1).div(per_sample_weight)
     return per_sample.mean()

@@ -108,6 +108,8 @@ class PerturbationModule(nn.Module):
         delta = target_means.clone()
         delta = delta.to(device=self.embedding.weight.device, dtype=self.embedding.weight.dtype)
         control_mean = control_mean.to(device=self.embedding.weight.device, dtype=self.embedding.weight.dtype)
+        # scGen-style initialization: each perturbation starts as
+        # mean(latent | perturbation) - mean(latent | control).
         delta = delta - control_mean.unsqueeze(0)
         delta[0].zero_()
         self.set_base_embeddings(delta)
@@ -119,6 +121,9 @@ class PerturbationModule(nn.Module):
     ) -> dict[str, torch.Tensor]:
         delta_base = self.embedding(perturbation_ids)
         delta = delta_base
+        # During training z_sem already comes from an observed cell under its
+        # real perturbation, so we do not add delta again here. Instead we keep
+        # z_basal for optional regularizers and interpretation.
         z_basal = z_sem - delta
         z_pert = z_sem
         return {
@@ -141,6 +146,9 @@ class PerturbationModule(nn.Module):
             source_ids = torch.zeros_like(target_ids)
         source_delta = self.embedding(source_ids)
         target_delta = self.embedding(target_ids)
+        # At inference we explicitly "remove source, add target" in latent
+        # space. This is the point where perturbation arithmetic becomes a real
+        # intervention instead of just an interpretation.
         z_basal = z_sem - source_delta
         if guide_scales is not None:
             if guide_scales.ndim == 1:
@@ -148,6 +156,31 @@ class PerturbationModule(nn.Module):
             else:
                 raise ValueError("guide_scales must be a 1D tensor")
         return z_basal + target_delta
+
+
+class GeneralizedSigmoid(nn.Module):
+    """Target-specific scalar nonlinearity for activity conditioning."""
+
+    def __init__(self, n_targets: int, non_linearity: str = "sigm") -> None:
+        super().__init__()
+        self.non_linearity = non_linearity
+        self.beta = nn.Parameter(torch.ones(1, n_targets + 1))
+        self.bias = nn.Parameter(torch.zeros(1, n_targets + 1))
+
+    def forward(self, x: torch.Tensor, target_ids: torch.Tensor) -> torch.Tensor:
+        target_ids = target_ids.long()
+        if self.non_linearity == "linear":
+            return x
+        bias = self.bias[0][target_ids]
+        beta = self.beta[0][target_ids]
+        c0 = bias.sigmoid()
+        if self.non_linearity == "logsigm":
+            scaled = (torch.log1p(x.clamp_min(0.0)) * beta + bias).sigmoid() - c0
+        elif self.non_linearity == "sigm":
+            scaled = (x * beta + bias).sigmoid() - c0
+        else:
+            raise ValueError(f"Unsupported doser_type: {self.non_linearity!r}")
+        return scaled.clamp_min(0.0)
 
 
 class SinusoidalTimeEmbedding(nn.Module):
