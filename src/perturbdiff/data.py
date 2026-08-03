@@ -101,16 +101,24 @@ def load_guide_activity_lookup(
     rows = read_metadata_table(path)
     if not rows:
         raise ValueError(f"No rows found in activity table: {path}")
+    if activity_col not in rows[0]:
+        raise KeyError(f"Column {activity_col!r} not found in activity table")
     label_col = next(iter(rows[0].keys()))
     lookup: dict[str, float] = {}
     for row in rows:
         label = str(row.get(label_col, "")).strip()
         if not label:
             continue
+        raw_value = row.get(activity_col, "")
+        if raw_value is None:
+            continue
+        value_text = str(raw_value).strip()
+        if not value_text or value_text.upper() in {"NA", "N/A", "ND", "NAN"}:
+            continue
         try:
-            value = float(row[activity_col])
-        except KeyError as exc:
-            raise KeyError(f"Column {activity_col!r} not found in activity table") from exc
+            value = float(value_text)
+        except ValueError:
+            continue
         gene = str(row.get("gene", "")).strip()
         for key in canonical_guide_keys(label):
             lookup[key] = value
@@ -314,6 +322,7 @@ class PerturbationDataset(Dataset):
         perturbation_ids: Sequence[int] | torch.Tensor,
         *,
         perturbation_labels: Sequence[str] | None = None,
+        activity_labels: Sequence[str] | None = None,
         target_ids: Sequence[int] | torch.Tensor | None = None,
         response_proxy: Sequence[float] | torch.Tensor | None = None,
         guide_features: Sequence[Sequence[float]] | torch.Tensor | None = None,
@@ -326,6 +335,11 @@ class PerturbationDataset(Dataset):
         self.expression = expression
         self.perturbation_ids = torch.as_tensor(perturbation_ids, dtype=torch.long)
         self.perturbation_labels = None if perturbation_labels is None else tuple(str(v) for v in perturbation_labels)
+        self.activity_labels = (
+            self.perturbation_labels
+            if activity_labels is None
+            else tuple(str(v) for v in activity_labels)
+        )
         # target_ids can be coarser than perturbation_ids. For example, several
         # sgRNAs may map to different perturbation ids but share one target id.
         self.target_ids = (
@@ -353,6 +367,8 @@ class PerturbationDataset(Dataset):
             raise ValueError("gene_names must match expression width")
         if self.perturbation_labels is not None and len(self.perturbation_labels) != len(self):
             raise ValueError("perturbation_labels must match expression length")
+        if self.activity_labels is not None and len(self.activity_labels) != len(self):
+            raise ValueError("activity_labels must match expression length")
         if len(self.target_ids) != len(self):
             raise ValueError("target_ids must match expression length")
         if self.response_proxy is not None and len(self.response_proxy) != len(self):
@@ -394,6 +410,8 @@ class PerturbationDataset(Dataset):
         }
         if self.perturbation_labels is not None:
             item["perturbation_label"] = self.perturbation_labels[idx]
+        if self.activity_labels is not None:
+            item["activity_label"] = self.activity_labels[idx]
         if self.response_proxy is not None:
             item["response_proxy"] = self.response_proxy[idx]
         if self.guide_features is not None:
@@ -407,6 +425,7 @@ def load_h5ad_perturbation_dataset(
     data_path: str | Path,
     *,
     perturbation_col: str,
+    activity_label_col: str | None = None,
     response_proxy_col: str | None = None,
     control_labels: Iterable[str] = CONTROL_PATTERNS,
     target_strategy: str = "first_token",
@@ -421,6 +440,12 @@ def load_h5ad_perturbation_dataset(
     if perturbation_col not in adata.obs:
         raise KeyError(f"Column '{perturbation_col}' not found in adata.obs")
     labels = [str(value) for value in adata.obs[perturbation_col].to_list()]
+    if activity_label_col is None:
+        activity_labels = labels
+    else:
+        if activity_label_col not in adata.obs:
+            raise KeyError(f"Column '{activity_label_col}' not found in adata.obs")
+        activity_labels = [str(value) for value in adata.obs[activity_label_col].to_list()]
     perturbation_ids, mapping = encode_perturbation_labels(
         labels,
         control_labels=control_labels,
@@ -443,6 +468,7 @@ def load_h5ad_perturbation_dataset(
             adata.X,
             perturbation_ids,
             perturbation_labels=labels,
+            activity_labels=activity_labels,
             target_ids=target_ids,
             response_proxy=response_proxy,
             gene_names=adata.var_names.astype(str).to_list(),

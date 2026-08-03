@@ -104,6 +104,7 @@ class GaussianDiffusion(nn.Module):
         shape: tuple[int, ...],
         z_cond: torch.Tensor,
         *,
+        activity_embedding: torch.Tensor | None = None,
         steps: int = 100,
         noise: torch.Tensor | None = None,
     ) -> torch.Tensor:
@@ -114,6 +115,8 @@ class GaussianDiffusion(nn.Module):
         x = noise if noise is not None else torch.randn(shape, device=device)
         if x.shape[0] != batch_size:
             raise ValueError("noise/sample batch size must match z_cond")
+        if activity_embedding is not None and activity_embedding.shape[0] != batch_size:
+            raise ValueError("activity_embedding batch size must match z_cond")
 
         time_seq = torch.linspace(
             self.timesteps,
@@ -138,7 +141,7 @@ class GaussianDiffusion(nn.Module):
                 device=device,
                 dtype=torch.long,
             )
-            prediction = denoiser(x, t, z_cond)
+            prediction = denoiser(x, t, z_cond, activity_embedding)
             x0, eps = self.prediction_to_x0_and_eps(x, t, prediction)
             prev_alpha_bar = _extract(self.alphas_cumprod, prev_t, x.shape)
             x = torch.sqrt(prev_alpha_bar) * x0 + torch.sqrt(1.0 - prev_alpha_bar) * eps

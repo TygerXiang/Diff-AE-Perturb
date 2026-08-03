@@ -25,6 +25,9 @@ class GuideFeatureEncoderConfig:
     enabled: bool = False
     feature_dim: int = 0
     activity_source: str = "predicted"
+    explicit_condition: bool = True
+    activity_condition_dim: int = 16
+    activity_scales_delta: bool = False
     architecture: str = "cnn"
     hidden_dims: tuple[int, ...] = (256, 256)
     dropout: float = 0.0

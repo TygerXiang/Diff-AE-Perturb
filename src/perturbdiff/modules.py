@@ -208,7 +208,7 @@ class SinusoidalTimeEmbedding(nn.Module):
 
 
 class ConditionalDenoiserMLP(nn.Module):
-    """Vector denoiser epsilon_theta(x_t, t, z_pert)."""
+    """Vector denoiser epsilon_theta(x_t, t, z_pert, activity_embedding)."""
 
     def __init__(
         self,
@@ -216,10 +216,12 @@ class ConditionalDenoiserMLP(nn.Module):
         latent_dim: int,
         hidden_dims: tuple[int, ...],
         time_embed_dim: int | None = None,
+        activity_condition_dim: int = 0,
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.time_embed_dim = time_embed_dim or latent_dim
+        self.activity_condition_dim = activity_condition_dim
         self.time_embedding = nn.Sequential(
             SinusoidalTimeEmbedding(self.time_embed_dim),
             nn.Linear(self.time_embed_dim, self.time_embed_dim),
@@ -227,7 +229,7 @@ class ConditionalDenoiserMLP(nn.Module):
             nn.Linear(self.time_embed_dim, self.time_embed_dim),
         )
         self.network = make_mlp(
-            n_genes + latent_dim + self.time_embed_dim,
+            n_genes + latent_dim + self.time_embed_dim + activity_condition_dim,
             hidden_dims,
             n_genes,
             dropout=dropout,
@@ -238,6 +240,17 @@ class ConditionalDenoiserMLP(nn.Module):
         x_t: torch.Tensor,
         timesteps: torch.Tensor,
         z_pert: torch.Tensor,
+        activity_embedding: torch.Tensor | None = None,
     ) -> torch.Tensor:
         t_emb = self.time_embedding(timesteps)
-        return self.network(torch.cat([x_t, t_emb, z_pert], dim=-1))
+        inputs = [x_t, t_emb, z_pert]
+        if self.activity_condition_dim > 0:
+            if activity_embedding is None:
+                activity_embedding = x_t.new_zeros(x_t.shape[0], self.activity_condition_dim)
+            if activity_embedding.shape != (x_t.shape[0], self.activity_condition_dim):
+                raise ValueError(
+                    "activity_embedding must have shape "
+                    f"{(x_t.shape[0], self.activity_condition_dim)}"
+                )
+            inputs.append(activity_embedding)
+        return self.network(torch.cat(inputs, dim=-1))

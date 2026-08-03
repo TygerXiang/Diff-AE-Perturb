@@ -45,6 +45,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train simplified conditional DDIM PerturbDiff.")
     parser.add_argument("--data-path", required=True, help="Prepared .h5ad input.")
     parser.add_argument("--perturbation-col", default="perturbation_label")
+    parser.add_argument(
+        "--activity-label-col",
+        default=None,
+        help="Optional obs column used to join guide-level activity independently of perturbation_col.",
+    )
     parser.add_argument("--target-strategy", choices=("first_token", "raw"), default="raw")
     parser.add_argument("--control-label", action="append", dest="control_labels")
     parser.add_argument("--output-dir", required=True)
@@ -91,14 +96,10 @@ def parse_args() -> argparse.Namespace:
         help="Weight for same-target guide direction alignment cosine loss.",
     )
     parser.add_argument("--guide-library-table", action="append", default=None, help="Mismatch library table(s) used to resolve each guide's fully matched sgRNA.")
-    parser.add_argument("--activity-source", choices=("none", "predicted"), default="none")
+    parser.add_argument("--activity-source", choices=("none", "predicted", "direct"), default="none")
     parser.add_argument("--guide-activity-cnn-table", default=None, help="Table_S8-style guide activity CNN input table.")
     parser.add_argument("--activity-table", default=None, help="Optional guide activity table for strength supervision.")
-    parser.add_argument(
-        "--activity-col",
-        choices=("relative_activity_day5", "relative_activity_day10"),
-        default="relative_activity_day10",
-    )
+    parser.add_argument("--activity-col", default="relative_activity_day10")
     parser.add_argument("--guide-sequence-length", type=int, default=26)
     parser.add_argument("--guide-strength-hidden-dims", default="64,64")
     parser.add_argument("--guide-strength-dropout", type=float, default=0.0)
@@ -106,6 +107,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guide-strength-cnn-kernel-size", type=int, default=4)
     parser.add_argument("--guide-strength-cnn-dropout", type=float, default=0.25)
     parser.add_argument("--guide-strength-lambda", type=float, default=0.1)
+    parser.add_argument(
+        "--activity-condition-dim",
+        type=int,
+        default=16,
+        help="Embedding dimension for the explicit activity condition passed into the DDIM denoiser.",
+    )
+    parser.add_argument(
+        "--disable-explicit-activity-condition",
+        action="store_true",
+        help="Keep activity folded only into z_pert by disabling the explicit denoiser condition channel.",
+    )
+    parser.add_argument(
+        "--enable-activity-delta-scaling",
+        action="store_true",
+        help="Also multiply perturbation delta by activity, matching the earlier folded-conditioning behavior.",
+    )
     parser.add_argument("--signature-summary-json", help="Optional signature summary JSON for weighted reconstruction.")
     parser.add_argument("--signature-gene-weight", type=float, default=1.0)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -124,6 +141,7 @@ def load_dataset(
     data_path: str | Path,
     *,
     perturbation_col: str,
+    activity_label_col: str | None,
     target_strategy: str,
     control_labels: tuple[str, ...],
     existing_mapping: dict[str, int] | None = None,
@@ -131,6 +149,7 @@ def load_dataset(
     return load_h5ad_perturbation_dataset(
         data_path,
         perturbation_col=perturbation_col,
+        activity_label_col=activity_label_col,
         response_proxy_col=None,
         control_labels=control_labels,
         target_strategy=target_strategy,
@@ -148,9 +167,9 @@ def attach_predicted_activity_features(
     records_by_key = load_guide_feature_records([guide_activity_cnn_table])
     if not records_by_key:
         raise ValueError("Guide activity CNN table was provided, but no records were loaded")
-    labels = getattr(dataset, "perturbation_labels", None)
+    labels = getattr(dataset, "activity_labels", None)
     if labels is None:
-        raise ValueError("Dataset is missing raw perturbation_labels required for guide activity features")
+        raise ValueError("Dataset is missing activity_labels required for guide activity features")
 
     feature_dim = guide_cnn_feature_dim(sequence_length=sequence_length)
     feature_rows: list[np.ndarray] = []
@@ -206,6 +225,59 @@ def attach_predicted_activity_features(
     }
 
 
+def lookup_activity_for_label(label: str, activity_lookup: dict[str, float]) -> float | None:
+    for key in canonical_guide_keys(str(label)):
+        value = activity_lookup.get(key)
+        if value is not None:
+            return float(value)
+    return None
+
+
+def attach_direct_activity_features(
+    dataset,
+    *,
+    activity_lookup: dict[str, float],
+) -> dict[str, object]:
+    labels = getattr(dataset, "activity_labels", None)
+    if labels is None:
+        raise ValueError("Dataset is missing activity_labels required for direct activity features")
+
+    feature_rows: list[np.ndarray] = []
+    activity_targets: list[float] = []
+    matched_activity_cells = 0
+    missing_activity_cells = 0
+    missing_labels: set[str] = set()
+    for pert_id, label in zip(dataset.perturbation_ids.tolist(), labels):
+        if int(pert_id) == 0:
+            value = 0.0
+        else:
+            lookup_value = lookup_activity_for_label(str(label), activity_lookup)
+            if lookup_value is None:
+                value = 0.0
+                missing_activity_cells += 1
+                missing_labels.add(str(label))
+            else:
+                value = float(lookup_value)
+                matched_activity_cells += 1
+        feature_rows.append(np.asarray([value], dtype=np.float32))
+        activity_targets.append(value)
+
+    if missing_labels:
+        preview = ", ".join(sorted(missing_labels)[:10])
+        raise ValueError(
+            f"Direct activity table is missing {len(missing_labels)} non-control labels: {preview}"
+        )
+    dataset.guide_features = torch.from_numpy(np.stack(feature_rows, axis=0))
+    dataset.guide_activity_targets = torch.tensor(activity_targets, dtype=torch.float32)
+    return {
+        "mode": "direct",
+        "feature_dim": 1,
+        "matched_activity_cells": matched_activity_cells,
+        "missing_activity_cells": missing_activity_cells,
+        "activity_supervision": True,
+    }
+
+
 def prepare_activity_conditioning(
     datasets: list[object],
     *,
@@ -217,6 +289,23 @@ def prepare_activity_conditioning(
 ) -> dict[str, object]:
     if activity_source == "none":
         return {"mode": "none", "feature_dim": 0, "activity_supervision": False}
+    if activity_source == "direct":
+        if activity_table is None:
+            raise ValueError("Direct activity mode requires --activity-table")
+        activity_lookup = load_guide_activity_lookup(activity_table, activity_col=activity_col)
+        summary = None
+        for dataset in datasets:
+            current = attach_direct_activity_features(dataset, activity_lookup=activity_lookup)
+            if summary is None:
+                summary = current
+        if summary is None:
+            raise ValueError("No datasets were provided for activity conditioning")
+        return {
+            **summary,
+            "activity_col": activity_col,
+            "activity_table": activity_table,
+            "guide_activity_cnn_table": None,
+        }
     if not guide_activity_cnn_table:
         raise ValueError("Predicted activity mode requires --guide-activity-cnn-table")
     activity_lookup = (
@@ -343,12 +432,14 @@ def main() -> None:
         train_dataset, mapping = load_dataset(
             args.train_path,
             perturbation_col=args.perturbation_col,
+            activity_label_col=args.activity_label_col,
             target_strategy=args.target_strategy,
             control_labels=control_labels,
         )
         val_dataset, _ = load_dataset(
             args.val_path,
             perturbation_col=args.perturbation_col,
+            activity_label_col=args.activity_label_col,
             target_strategy=args.target_strategy,
             control_labels=control_labels,
             existing_mapping=mapping,
@@ -356,6 +447,7 @@ def main() -> None:
         test_dataset, _ = load_dataset(
             args.test_path,
             perturbation_col=args.perturbation_col,
+            activity_label_col=args.activity_label_col,
             target_strategy=args.target_strategy,
             control_labels=control_labels,
             existing_mapping=mapping,
@@ -369,6 +461,7 @@ def main() -> None:
         full_dataset, mapping = load_dataset(
             args.data_path,
             perturbation_col=args.perturbation_col,
+            activity_label_col=args.activity_label_col,
             target_strategy=args.target_strategy,
             control_labels=control_labels,
         )
@@ -436,17 +529,20 @@ def main() -> None:
             lambda_direction_align=args.lambda_direction_align,
         ),
         guide_encoder=GuideFeatureEncoderConfig(
-            enabled=args.activity_source == "predicted",
+            enabled=args.activity_source in {"predicted", "direct"},
             feature_dim=int(conditioning_summary["feature_dim"]),
-            activity_source="predicted",
-            architecture="cnn",
+            activity_source=args.activity_source if args.activity_source != "none" else "predicted",
+            explicit_condition=not args.disable_explicit_activity_condition,
+            activity_condition_dim=args.activity_condition_dim,
+            activity_scales_delta=args.enable_activity_delta_scaling,
+            architecture="mlp" if args.activity_source == "direct" else "cnn",
             hidden_dims=parse_hidden_dims(args.guide_strength_hidden_dims),
             dropout=args.guide_strength_dropout,
             sequence_length=args.guide_sequence_length,
             cnn_channels=parse_hidden_dims(args.guide_strength_cnn_channels),
             cnn_kernel_size=args.guide_strength_cnn_kernel_size,
             cnn_dropout=args.guide_strength_cnn_dropout,
-            lambda_strength=args.guide_strength_lambda if args.activity_table else 0.0,
+            lambda_strength=args.guide_strength_lambda if args.activity_source == "predicted" and args.activity_table else 0.0,
         ),
     )
     device = torch.device(args.device)
@@ -461,7 +557,7 @@ def main() -> None:
             num_workers=args.num_workers,
             device=device,
         )
-    if args.activity_source == "predicted":
+    if args.activity_source in {"predicted", "direct"}:
         model.initialize_guide_strength_directions_from_perturbation_embeddings(
             torch.arange(0, len(mapping) + 1, dtype=torch.long, device=device)
         )
@@ -605,6 +701,7 @@ def main() -> None:
         "virtual_s_enabled": guide_scales is not None,
         "conditioning_summary": conditioning_summary,
         "activity_source": args.activity_source,
+        "activity_label_col": args.activity_label_col,
         "device": str(device),
     }
     with (output_dir / "metrics.json").open("w", encoding="utf-8") as handle:

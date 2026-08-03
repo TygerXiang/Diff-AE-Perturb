@@ -29,17 +29,21 @@ class PerturbDiffusionModel(nn.Module):
         if config.guide_encoder.enabled:
             if config.guide_encoder.feature_dim < 1:
                 raise ValueError("guide_encoder.feature_dim must be >= 1 when enabled")
-            if config.guide_encoder.activity_source != "predicted":
-                raise ValueError("guide_encoder.activity_source must be 'predicted'")
-            self.guide_strength = GuideStrengthEncoder(
-                feature_dim=config.guide_encoder.feature_dim,
-                architecture=config.guide_encoder.architecture,
-                hidden_dims=config.guide_encoder.hidden_dims,
-                dropout=config.guide_encoder.dropout,
-                sequence_length=config.guide_encoder.sequence_length,
-                cnn_channels=config.guide_encoder.cnn_channels,
-                cnn_kernel_size=config.guide_encoder.cnn_kernel_size,
-                cnn_dropout=config.guide_encoder.cnn_dropout,
+            if config.guide_encoder.activity_source not in {"predicted", "direct"}:
+                raise ValueError("guide_encoder.activity_source must be 'predicted' or 'direct'")
+            self.guide_strength = (
+                GuideStrengthEncoder(
+                    feature_dim=config.guide_encoder.feature_dim,
+                    architecture=config.guide_encoder.architecture,
+                    hidden_dims=config.guide_encoder.hidden_dims,
+                    dropout=config.guide_encoder.dropout,
+                    sequence_length=config.guide_encoder.sequence_length,
+                    cnn_channels=config.guide_encoder.cnn_channels,
+                    cnn_kernel_size=config.guide_encoder.cnn_kernel_size,
+                    cnn_dropout=config.guide_encoder.cnn_dropout,
+                )
+                if config.guide_encoder.activity_source == "predicted"
+                else None
             )
             self.guide_doser = GeneralizedSigmoid(
                 n_targets=config.n_perturbations,
@@ -48,10 +52,27 @@ class PerturbDiffusionModel(nn.Module):
         else:
             self.guide_strength = None
             self.guide_doser = None
+        self.activity_condition_dim = (
+            int(getattr(config.guide_encoder, "activity_condition_dim", 0))
+            if config.guide_encoder.enabled
+            and bool(getattr(config.guide_encoder, "explicit_condition", False))
+            else 0
+        )
+        if self.activity_condition_dim < 0:
+            raise ValueError("guide_encoder.activity_condition_dim must be >= 0")
+        if self.activity_condition_dim > 0:
+            self.activity_condition = nn.Sequential(
+                nn.Linear(1, self.activity_condition_dim, bias=False),
+                nn.SiLU(),
+                nn.Linear(self.activity_condition_dim, self.activity_condition_dim, bias=False),
+            )
+        else:
+            self.activity_condition = None
         self.denoiser = ConditionalDenoiserMLP(
             n_genes=config.n_genes,
             latent_dim=config.latent_dim,
             hidden_dims=config.denoiser_hidden_dims,
+            activity_condition_dim=self.activity_condition_dim,
             dropout=config.dropout,
         )
         self.diffusion = GaussianDiffusion(config.diffusion)
@@ -158,6 +179,7 @@ class PerturbDiffusionModel(nn.Module):
         if self.guide_doser is None:
             pert["strength"] = None
             pert["scaled_strength"] = None
+            pert["activity_embedding"] = None
             pert["guide_strength_loss"] = guide_strength_loss
             return {**pert}
 
@@ -165,16 +187,28 @@ class PerturbDiffusionModel(nn.Module):
             strength = torch.ones(x0.shape[0], device=x0.device, dtype=x0.dtype)
         else:
             guide_features = guide_features.to(device=x0.device, dtype=x0.dtype)
-            if self.guide_strength is None:
-                raise RuntimeError("guide_strength encoder is required for predicted activity mode")
-            strength = self.guide_strength(guide_features)
+            if self.config.guide_encoder.activity_source == "direct":
+                if guide_features.ndim == 1:
+                    strength = guide_features
+                elif guide_features.ndim == 2 and guide_features.shape[1] >= 1:
+                    strength = guide_features[:, 0]
+                else:
+                    raise ValueError("direct activity mode expects guide_features with shape (batch,) or (batch, >=1)")
+                strength = strength.clamp_min(0.0)
+            else:
+                if self.guide_strength is None:
+                    raise RuntimeError("guide_strength encoder is required for predicted activity mode")
+                strength = self.guide_strength(guide_features)
             if self.config.guide_encoder.lambda_strength > 0 and guide_activity_targets is not None:
                 target_strength = guide_activity_targets.to(device=x0.device, dtype=x0.dtype).clamp_min(0.0)
                 guide_strength_loss = torch.nn.functional.mse_loss(strength, target_strength)
 
-        scale_ids = target_ids if target_ids is not None else perturbation_ids
-        scaled_strength = self.guide_doser(strength, scale_ids).unsqueeze(-1)
-        pert["delta"] = pert["delta_base"] * scaled_strength
+        activity_ids = target_ids if target_ids is not None else perturbation_ids
+        activity_value = self.guide_doser(strength, activity_ids)
+        if bool(getattr(self.config.guide_encoder, "activity_scales_delta", False)):
+            pert["delta"] = pert["delta_base"] * activity_value.unsqueeze(-1)
+        else:
+            pert["delta"] = pert["delta_base"]
         pert["z_basal"] = z_sem - pert["delta"]
         z_control = self._build_control_anchor(z_sem, pert["delta"], perturbation_ids)
         pert["z_control"] = z_control
@@ -184,9 +218,26 @@ class PerturbDiffusionModel(nn.Module):
             z_control + pert["delta"],
         )
         pert["strength"] = strength
-        pert["scaled_strength"] = scaled_strength.squeeze(-1)
+        pert["scaled_strength"] = activity_value
+        pert["activity_embedding"] = self._build_activity_embedding(
+            pert["scaled_strength"],
+            perturbation_ids,
+        )
         pert["guide_strength_loss"] = guide_strength_loss
         return {**pert}
+
+    def _build_activity_embedding(
+        self,
+        activity_value: torch.Tensor,
+        perturbation_ids: torch.Tensor,
+    ) -> torch.Tensor | None:
+        if self.activity_condition is None:
+            return None
+        if activity_value.ndim != 1:
+            raise ValueError("activity_value must be a 1D tensor")
+        active = (perturbation_ids != 0).to(dtype=activity_value.dtype, device=activity_value.device)
+        activity_value = activity_value * active
+        return self.activity_condition(activity_value.unsqueeze(-1))
 
     def _build_control_anchor(
         self,
@@ -206,8 +257,9 @@ class PerturbDiffusionModel(nn.Module):
         x_t: torch.Tensor,
         timesteps: torch.Tensor,
         z_pert: torch.Tensor,
+        activity_embedding: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return self.denoiser(x_t, timesteps, z_pert)
+        return self.denoiser(x_t, timesteps, z_pert, activity_embedding)
 
     def training_losses(
         self,
@@ -230,7 +282,12 @@ class PerturbDiffusionModel(nn.Module):
             guide_activity_targets=guide_activity_targets,
         )
         x_t, noise = self.diffusion.q_sample(x0, timesteps, noise=noise)
-        prediction = self.denoiser(x_t, timesteps, condition["z_pert"])
+        prediction = self.denoiser(
+            x_t,
+            timesteps,
+            condition["z_pert"],
+            condition["activity_embedding"],
+        )
         # Diffusion training can target either the original clean sample x0 or
         # the sampled noise eps. The config decides which learning problem we
         # pose to the denoiser.
@@ -305,6 +362,7 @@ class PerturbDiffusionModel(nn.Module):
             "z_sem": condition["z_sem"],
             "z_pert": condition["z_pert"],
             "delta": condition["delta"],
+            "activity_embedding": condition["activity_embedding"],
             "prediction": prediction,
         }
 
@@ -339,6 +397,7 @@ class PerturbDiffusionModel(nn.Module):
         noise: torch.Tensor | None = None,
     ) -> torch.Tensor:
         z_sem = self.encoder(x_ctrl)
+        activity_value = None
         if self.guide_doser is not None:
             if guide_scales is not None:
                 raise ValueError("guide_scales cannot be combined with guide_features activity conditioning")
@@ -346,22 +405,42 @@ class PerturbDiffusionModel(nn.Module):
                 strength = torch.ones(x_ctrl.shape[0], device=x_ctrl.device, dtype=x_ctrl.dtype)
             else:
                 guide_features = guide_features.to(device=x_ctrl.device, dtype=x_ctrl.dtype)
-                if self.guide_strength is None:
-                    raise RuntimeError("guide_strength encoder is required for predicted activity mode")
-                strength = self.guide_strength(guide_features)
-            guide_scales = self.guide_doser(strength, target_ids)
+                if self.config.guide_encoder.activity_source == "direct":
+                    if guide_features.ndim == 1:
+                        strength = guide_features
+                    elif guide_features.ndim == 2 and guide_features.shape[1] >= 1:
+                        strength = guide_features[:, 0]
+                    else:
+                        raise ValueError("direct activity mode expects guide_features with shape (batch,) or (batch, >=1)")
+                    strength = strength.clamp_min(0.0)
+                else:
+                    if self.guide_strength is None:
+                        raise RuntimeError("guide_strength encoder is required for predicted activity mode")
+                    strength = self.guide_strength(guide_features)
+            activity_value = self.guide_doser(strength, target_ids)
+        activity_embedding = (
+            self._build_activity_embedding(activity_value, target_ids)
+            if activity_value is not None
+            else None
+        )
         # Unlike training, inference starts from a chosen source cell and
         # explicitly builds the target condition latent we want to generate.
         z_cf = self.perturbation.counterfactual_latent(
             z_sem,
             target_ids,
             source_ids=torch.zeros_like(target_ids),
-            guide_scales=guide_scales,
+            guide_scales=(
+                activity_value
+                if self.guide_doser is not None
+                and bool(getattr(self.config.guide_encoder, "activity_scales_delta", False))
+                else guide_scales
+            ),
         )
         return self.diffusion.ddim_sample(
             self.denoiser,
             shape=x_ctrl.shape,
             z_cond=z_cf,
+            activity_embedding=activity_embedding,
             steps=steps,
             noise=noise,
         )

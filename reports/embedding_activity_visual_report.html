@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embedding, Activity, and Sequence Analysis Report</title>
+  
+    <style>
+      :root {
+        --bg: #f7f7f3;
+        --ink: #1e2621;
+        --muted: #607066;
+        --panel: #ffffff;
+        --line: #d8ded6;
+        --soft: #eef2ec;
+        --a: #316b5b;
+        --b: #9b5d36;
+        --c: #4a6f9d;
+        --good: #2f7d55;
+        --bad: #a34b42;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Segoe UI", Arial, sans-serif;
+        line-height: 1.5;
+      }
+      main { max-width: 1180px; margin: 0 auto; padding: 42px 28px 64px; }
+      header { margin-bottom: 28px; border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+      h1 { margin: 0 0 10px; font-size: 34px; letter-spacing: 0; }
+      h2 { margin: 36px 0 14px; font-size: 24px; }
+      h3 { margin: 22px 0 10px; font-size: 18px; }
+      p { margin: 8px 0 12px; }
+      code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+      .subtitle { color: var(--muted); max-width: 900px; }
+      .grid { stroke: var(--line); stroke-width: 1; }
+      .axis { stroke: var(--ink); stroke-width: 1.2; }
+      .tick, .caption, .x-label, .bar-label { fill: var(--muted); font-size: 12px; }
+      .bar-label { fill: var(--ink); }
+      .fill-a { fill: var(--a); }
+      .fill-b { fill: var(--b); }
+      .fill-c { fill: var(--c); }
+      .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; align-items: start; }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        margin: 16px 0;
+      }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 18px 0; }
+      .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+      .stat-title { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .stat-value { font-size: 25px; font-weight: 600; margin-top: 4px; }
+      .stat-note { color: var(--muted); font-size: 13px; margin-top: 2px; }
+      .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin: 8px 0; }
+      .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+      .swatch-a { background: var(--a); }
+      .swatch-b { background: var(--b); }
+      .swatch-c { background: var(--c); }
+      .table-wrap { overflow-x: auto; margin: 12px 0 20px; }
+      table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+      th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+      th { background: var(--soft); font-weight: 600; }
+      tr:last-child td { border-bottom: none; }
+      .note { color: var(--muted); font-size: 13px; }
+      .callout { border-left: 4px solid var(--a); padding: 10px 14px; background: var(--panel); margin: 14px 0; }
+      .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+      svg { width: 100%; height: auto; display: block; }
+      @media (max-width: 640px) {
+        main { padding: 28px 16px 48px; }
+        h1 { font-size: 28px; }
+        .chart-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+    
+</head>
+<body>
+<main>
+  <header>
+    <h1>PerturbDiff sgRNA Activity 与 Embedding 分析报告</h1>
+    <p class="subtitle">汇总 activity conditioning 模块、127-guide 六指标评估、Embedding/activity 相关性、sgRNA sequence 关系以及 embedding 方向聚集性。报告由本地结果文件自动生成。</p>
+  </header>
+
+  <section>
+    <h2>1. 模型与 Activity 模块</h2>
+    <div class="callout">
+      <p><strong>PerturbDiff</strong> 使用表达向量编码器得到语义 latent <code>z_sem</code>，为每个 perturbation/sgRNA 学习 latent delta embedding，再用条件 DDIM denoiser 从控制细胞生成目标扰动表达。</p>
+    </div>
+    <div class="two-col">
+      <div class="panel">
+        <h3>基础条件路径</h3>
+        <p><code>SemanticEncoder</code> 将 <code>x0</code> 编码为 <code>z_sem</code>；<code>PerturbationModule</code> 为每个 sgRNA 提供 <code>delta_base</code>。推理时从控制细胞 latent 出发，构造 <code>z_cf = z_sem - source_delta + target_delta</code>，再传入 DDIM denoiser。</p>
+        <p>因此 perturbation embedding 本身既有长度（强度）也有方向（target identity / response direction）。</p>
+      </div>
+      <div class="panel">
+        <h3>Activity conditioning 实现</h3>
+        <p>activity 模块打开后，模型先把 sgRNA 特征转换为非负 <code>strength</code>。在 <code>predicted</code> 模式中，<code>GuideStrengthEncoder</code> 用 Table S8 的 <code>genome input</code> 与 <code>sgRNA input</code> 两通道 one-hot 序列，经 CNN 回归 strength；在 <code>direct</code> 模式中直接读取 activity 标量。</p>
+        <p><code>GeneralizedSigmoid</code> 为每个 target 学习 beta/bias，将 strength 映射为 target-specific <code>activity_value</code>。本次 <code>explicit_only_200ep</code> 中，activity_value 被线性投影成 16 维 <code>activity_embedding</code> 作为 denoiser 额外输入，而没有启用 delta scaling。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 127 guides 六指标评估：explicit_only vs no_activity</h2>
+    <div class="stats">
+      
+      <div class="stat">
+        <div class="stat-title">Conditions</div>
+        <div class="stat-value">127</div>
+        <div class="stat-note">guide-level test conditions</div>
+      </div>
+    
+      
+      <div class="stat">
+        <div class="stat-title">Overall rank</div>
+        <div class="stat-value">no_activity 1.538 / explicit 1.462</div>
+        <div class="stat-note">lower rank is better</div>
+      </div>
+    
+      
+      <div class="stat">
+        <div class="stat-title">MSE improvement</div>
+        <div class="stat-value">56.8%</div>
+        <div class="stat-note">explicit_only lower than no_activity</div>
+      </div>
+    
+      
+      <div class="stat">
+        <div class="stat-title">PCC delta gain</div>
+        <div class="stat-value">0.479</div>
+        <div class="stat-note">explicit_only minus no_activity</div>
+      </div>
+    
+    </div>
+    <div class="panel">
+      <h3>Metric averages</h3>
+      <div class="legend"><span><span class="swatch swatch-a"></span>no_activity_200ep</span><span><span class="swatch swatch-b"></span>explicit_only_200ep</span></div>
+      <svg viewBox="0 0 760 330" role="img" aria-label="Six benchmark metrics">
+<line x1="78" y1="272.0" x2="736" y2="272.0" class="axis"/>
+<line x1="78" y1="272.0" x2="736" y2="272.0" class="grid"/>
+<text x="70" y="276.0" text-anchor="end" class="tick">0</text>
+<line x1="78" y1="210.5" x2="736" y2="210.5" class="grid"/>
+<text x="70" y="214.5" text-anchor="end" class="tick">3.133</text>
+<line x1="78" y1="149.0" x2="736" y2="149.0" class="grid"/>
+<text x="70" y="153.0" text-anchor="end" class="tick">6.266</text>
+<line x1="78" y1="87.5" x2="736" y2="87.5" class="grid"/>
+<text x="70" y="91.5" text-anchor="end" class="tick">9.399</text>
+<line x1="78" y1="26.0" x2="736" y2="26.0" class="grid"/>
+<text x="70" y="30.0" text-anchor="end" class="tick">12.53</text>
+<rect x="98.6" y="271.7" width="29.5" height="1.0" class="fill-a" aria-label="MSE no_activity: 0.016"><title>MSE no_activity: 0.016</title></rect>
+<text x="113.3" y="266.7" text-anchor="middle" class="bar-label">0.016</text>
+<rect x="132.8" y="271.9" width="29.5" height="1.0" class="fill-b" aria-label="MSE explicit: 0.007"><title>MSE explicit: 0.007</title></rect>
+<text x="147.6" y="266.9" text-anchor="middle" class="bar-label">0.007</text>
+<text x="132.8" y="302" text-anchor="middle" class="x-label">MSE</text>
+<rect x="208.2" y="250.5" width="29.5" height="21.5" class="fill-a" aria-label="E-distance no_activity: 1.094"><title>E-distance no_activity: 1.094</title></rect>
+<text x="223.0" y="245.5" text-anchor="middle" class="bar-label">1.094</text>
+<rect x="242.5" y="257.8" width="29.5" height="14.2" class="fill-b" aria-label="E-distance explicit: 0.723"><title>E-distance explicit: 0.723</title></rect>
+<text x="257.2" y="252.8" text-anchor="middle" class="bar-label">0.723</text>
+<text x="242.5" y="302" text-anchor="middle" class="x-label">E-distance</text>
+<rect x="317.9" y="271.2" width="29.5" height="1.0" class="fill-a" aria-label="PCC delta no_activity: 0.039"><title>PCC delta no_activity: 0.039</title></rect>
+<text x="332.6" y="266.2" text-anchor="middle" class="bar-label">0.039</text>
+<rect x="352.2" y="261.8" width="29.5" height="10.2" class="fill-b" aria-label="PCC delta explicit: 0.518"><title>PCC delta explicit: 0.518</title></rect>
+<text x="366.9" y="256.8" text-anchor="middle" class="bar-label">0.518</text>
+<text x="352.2" y="302" text-anchor="middle" class="x-label">PCC delta</text>
+<rect x="427.6" y="263.9" width="29.5" height="8.1" class="fill-a" aria-label="Wasserstein no_activity: 0.415"><title>Wasserstein no_activity: 0.415</title></rect>
+<text x="442.3" y="258.9" text-anchor="middle" class="bar-label">0.415</text>
+<rect x="461.8" y="263.5" width="29.5" height="8.5" class="fill-b" aria-label="Wasserstein explicit: 0.431"><title>Wasserstein explicit: 0.431</title></rect>
+<text x="476.6" y="258.5" text-anchor="middle" class="bar-label">0.431</text>
+<text x="461.8" y="302" text-anchor="middle" class="x-label">Wasserstein</text>
+<rect x="537.2" y="36.1" width="29.5" height="235.9" class="fill-a" aria-label="KL divergence no_activity: 12.02"><title>KL divergence no_activity: 12.02</title></rect>
+<text x="552.0" y="31.1" text-anchor="middle" class="bar-label">12.02</text>
+<rect x="571.5" y="26.0" width="29.5" height="246.0" class="fill-b" aria-label="KL divergence explicit: 12.53"><title>KL divergence explicit: 12.53</title></rect>
+<text x="586.2" y="21.0" text-anchor="middle" class="bar-label">12.53</text>
+<text x="571.5" y="302" text-anchor="middle" class="x-label">KL divergence</text>
+<rect x="646.9" y="271.3" width="29.5" height="1.0" class="fill-a" aria-label="Common DEGs no_activity: 0.036"><title>Common DEGs no_activity: 0.036</title></rect>
+<text x="661.6" y="266.3" text-anchor="middle" class="bar-label">0.036</text>
+<rect x="681.2" y="270.9" width="29.5" height="1.1" class="fill-b" aria-label="Common DEGs explicit: 0.054"><title>Common DEGs explicit: 0.054</title></rect>
+<text x="695.9" y="265.9" text-anchor="middle" class="bar-label">0.054</text>
+<text x="681.2" y="302" text-anchor="middle" class="x-label">Common DEGs</text>
+</svg>
+    </div>
+    <div class="table-wrap"><table class=""><thead><tr><th>Metric</th><th>Better</th><th>no_activity_200ep</th><th>explicit_only_200ep</th><th>win counts no/ex</th></tr></thead><tbody><tr><td>MSE</td><td>lower</td><td>0.016</td><td>0.007</td><td>9 / 118</td></tr><tr><td>E-distance</td><td>lower</td><td>1.094</td><td>0.723</td><td>81 / 46</td></tr><tr><td>PCC delta</td><td>higher</td><td>0.039</td><td>0.518</td><td>5 / 122</td></tr><tr><td>Wasserstein</td><td>lower</td><td>0.415</td><td>0.431</td><td>84 / 43</td></tr><tr><td>KL divergence</td><td>lower</td><td>12.02</td><td>12.53</td><td>107 / 20</td></tr><tr><td>Common DEGs</td><td>higher</td><td>0.036</td><td>0.054</td><td>66 / 61</td></tr></tbody></table></div>
+    <p class="note">主要结论：按平均值看，explicit_only 在 MSE、E-distance、PCC_delta 和 Common DEGs 上更好；no_activity 在 Wasserstein 与 KL divergence 上更好。按逐 guide win counts 看，E-distance/Wasserstein/KL 更偏向 no_activity，说明均值与逐条件稳定性存在差异。overall rank explicit_only 略优。</p>
+  </section>
+
+  <section>
+    <h2>3. Embedding/activity 相关性</h2>
+    <div class="panel">
+      <h3>Embedding norm vs activity</h3>
+      <div class="legend"><span><span class="swatch swatch-a"></span>Pearson</span><span><span class="swatch swatch-b"></span>Spearman</span><span><span class="swatch swatch-c"></span>within-target rank agreement</span></div>
+      <svg viewBox="0 0 760 300" role="img" aria-label="Embedding/activity correlations">
+<line x1="78" y1="242.0" x2="736" y2="242.0" class="axis"/>
+<line x1="78" y1="242.0" x2="736" y2="242.0" class="grid"/>
+<text x="70" y="246.0" text-anchor="end" class="tick">0</text>
+<line x1="78" y1="188.0" x2="736" y2="188.0" class="grid"/>
+<text x="70" y="192.0" text-anchor="end" class="tick">0.21</text>
+<line x1="78" y1="134.0" x2="736" y2="134.0" class="grid"/>
+<text x="70" y="138.0" text-anchor="end" class="tick">0.42</text>
+<line x1="78" y1="80.0" x2="736" y2="80.0" class="grid"/>
+<text x="70" y="84.0" text-anchor="end" class="tick">0.63</text>
+<line x1="78" y1="26.0" x2="736" y2="26.0" class="grid"/>
+<text x="70" y="30.0" text-anchor="end" class="tick">0.85</text>
+<rect x="125.0" y="131.8" width="67.4" height="110.2" class="fill-a" aria-label="no_activity pearson: 0.431"><title>no_activity pearson: 0.431</title></rect>
+<text x="158.7" y="126.8" text-anchor="middle" class="bar-label">0.431</text>
+<rect x="203.3" y="103.4" width="67.4" height="138.6" class="fill-b" aria-label="no_activity spearman: 0.542"><title>no_activity spearman: 0.542</title></rect>
+<text x="237.0" y="98.4" text-anchor="middle" class="bar-label">0.542</text>
+<rect x="281.7" y="27.9" width="67.4" height="214.1" class="fill-c" aria-label="no_activity rank: 0.838"><title>no_activity rank: 0.838</title></rect>
+<text x="315.3" y="22.9" text-anchor="middle" class="bar-label">0.838</text>
+<text x="242.5" y="272" text-anchor="middle" class="x-label">no_activity</text>
+<rect x="454.0" y="95.6" width="67.4" height="146.4" class="fill-a" aria-label="explicit_only pearson: 0.573"><title>explicit_only pearson: 0.573</title></rect>
+<text x="487.7" y="90.6" text-anchor="middle" class="bar-label">0.573</text>
+<rect x="532.3" y="87.8" width="67.4" height="154.2" class="fill-b" aria-label="explicit_only spearman: 0.603"><title>explicit_only spearman: 0.603</title></rect>
+<text x="566.0" y="82.8" text-anchor="middle" class="bar-label">0.603</text>
+<rect x="610.7" y="26.0" width="67.4" height="216.0" class="fill-c" aria-label="explicit_only rank: 0.845"><title>explicit_only rank: 0.845</title></rect>
+<text x="644.3" y="21.0" text-anchor="middle" class="bar-label">0.845</text>
+<text x="571.5" y="272" text-anchor="middle" class="x-label">explicit_only</text>
+</svg>
+    </div>
+    <div class="table-wrap"><table class=""><thead><tr><th>Method</th><th>Pearson</th><th>Spearman</th><th>within-target rank agreement</th></tr></thead><tbody><tr><td>no_activity</td><td>0.431</td><td>0.542</td><td>83.8%</td></tr><tr><td>explicit_only</td><td>0.573</td><td>0.603</td><td>84.5%</td></tr></tbody></table></div>
+    <p class="note">embedding norm 与实测 activity 呈中等正相关；activity-conditioned explicit_only 的相关性更高。</p>
+  </section>
+
+  <section>
+    <h2>4. sgRNA sequence 与 embedding 的关系</h2>
+    <div class="table-wrap"><table class=""><thead><tr><th>Method</th><th>PAM distance Spearman vs embedding_s</th><th>family-centered r</th><th>rG:dT embedding_s mean vs other</th><th>distal GC rho</th><th>first G match embedding_s true vs false</th><th>neighbor G rho</th></tr></thead><tbody><tr><td>no_activity_200ep</td><td>0.350</td><td>0.526</td><td>0.932 vs 0.743</td><td>-0.130</td><td>0.721 vs 0.899</td><td>0.016</td></tr><tr><td>explicit_only_200ep</td><td>0.259</td><td>0.485</td><td>0.950 vs 0.797</td><td>-0.094</td><td>0.788 vs 0.893</td><td>-0.064</td></tr></tbody></table></div>
+    <div class="callout">
+      <p>强信号被 embedding 部分捕获：PAM distance 越远，activity 与 <code>embedding_s</code> 越高；rG:dT mismatch 的 <code>embedding_s</code> 也高于其它 mismatch。GC、邻位 G 等弱/context-dependent 特征未稳定复现。修正后的 first invariant G 判断来自 Table S8 中 <code>genome input</code> 与 <code>sgRNA input</code> 的同位点比较，不是直接比较整段输入首字符；当前 distal 子集为 38 true / 39 false，因此不是全 true，且方向与文献描述不一致。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Embedding 方向聚集性</h2>
+    <div class="stats">
+      
+      <div class="stat">
+        <div class="stat-title">no_activity same-gene cosine</div>
+        <div class="stat-value">0.661</div>
+        <div class="stat-note">cross-gene 0.098</div>
+      </div>
+    
+      
+      <div class="stat">
+        <div class="stat-title">explicit same-gene cosine</div>
+        <div class="stat-value">0.676</div>
+        <div class="stat-note">cross-gene 0.005</div>
+      </div>
+    
+      
+      <div class="stat">
+        <div class="stat-title">no_activity top1 same gene</div>
+        <div class="stat-value">86.7%</div>
+        <div class="stat-note">random baseline 3.26%</div>
+      </div>
+    
+      
+      <div class="stat">
+        <div class="stat-title">explicit top1 same gene</div>
+        <div class="stat-value">75.8%</div>
+        <div class="stat-note">random baseline 3.26%</div>
+      </div>
+    
+    </div>
+    <div class="panel">
+      <h3>Same-gene vs cross-gene cosine</h3>
+      <div class="legend"><span><span class="swatch swatch-a"></span>same gene</span><span><span class="swatch swatch-b"></span>cross gene</span><span><span class="swatch swatch-c"></span>top1 same-gene fraction</span></div>
+      <svg viewBox="0 0 760 300" role="img" aria-label="Direction clustering">
+<line x1="78" y1="242.0" x2="736" y2="242.0" class="axis"/>
+<line x1="78" y1="242.0" x2="736" y2="242.0" class="grid"/>
+<text x="70" y="246.0" text-anchor="end" class="tick">0</text>
+<line x1="78" y1="188.0" x2="736" y2="188.0" class="grid"/>
+<text x="70" y="192.0" text-anchor="end" class="tick">0.22</text>
+<line x1="78" y1="134.0" x2="736" y2="134.0" class="grid"/>
+<text x="70" y="138.0" text-anchor="end" class="tick">0.43</text>
+<line x1="78" y1="80.0" x2="736" y2="80.0" class="grid"/>
+<text x="70" y="84.0" text-anchor="end" class="tick">0.65</text>
+<line x1="78" y1="26.0" x2="736" y2="26.0" class="grid"/>
+<text x="70" y="30.0" text-anchor="end" class="tick">0.87</text>
+<rect x="125.0" y="77.4" width="67.4" height="164.6" class="fill-a" aria-label="no_activity same: 0.661"><title>no_activity same: 0.661</title></rect>
+<text x="158.7" y="72.4" text-anchor="middle" class="bar-label">0.661</text>
+<rect x="203.3" y="217.6" width="67.4" height="24.4" class="fill-b" aria-label="no_activity cross: 0.098"><title>no_activity cross: 0.098</title></rect>
+<text x="237.0" y="212.6" text-anchor="middle" class="bar-label">0.098</text>
+<rect x="281.7" y="26.0" width="67.4" height="216.0" class="fill-c" aria-label="no_activity top1: 0.867"><title>no_activity top1: 0.867</title></rect>
+<text x="315.3" y="21.0" text-anchor="middle" class="bar-label">0.867</text>
+<text x="242.5" y="272" text-anchor="middle" class="x-label">no_activity</text>
+<rect x="454.0" y="73.5" width="67.4" height="168.5" class="fill-a" aria-label="explicit_only same: 0.676"><title>explicit_only same: 0.676</title></rect>
+<text x="487.7" y="68.5" text-anchor="middle" class="bar-label">0.676</text>
+<rect x="532.3" y="240.8" width="67.4" height="1.2" class="fill-b" aria-label="explicit_only cross: 0.005"><title>explicit_only cross: 0.005</title></rect>
+<text x="566.0" y="235.8" text-anchor="middle" class="bar-label">0.005</text>
+<rect x="610.7" y="53.2" width="67.4" height="188.8" class="fill-c" aria-label="explicit_only top1: 0.758"><title>explicit_only top1: 0.758</title></rect>
+<text x="644.3" y="48.2" text-anchor="middle" class="bar-label">0.758</text>
+<text x="571.5" y="272" text-anchor="middle" class="x-label">explicit_only</text>
+</svg>
+    </div>
+    <div class="two-col">
+      <div>
+        <h3>no_activity: tightest / loosest genes</h3>
+        <div class="table-wrap"><table class=""><thead><tr><th>Tightest target</th><th>n</th><th>within cosine</th></tr></thead><tbody><tr><td>HSPA5</td><td>5</td><td>0.953</td></tr><tr><td>CAD</td><td>5</td><td>0.910</td></tr><tr><td>POLR1D</td><td>5</td><td>0.904</td></tr><tr><td>BCR</td><td>6</td><td>0.854</td></tr><tr><td>HSPA9</td><td>5</td><td>0.848</td></tr></tbody></table></div>
+        <div class="table-wrap"><table class=""><thead><tr><th>Loosest target</th><th>n</th><th>within cosine</th></tr></thead><tbody><tr><td>RPS15</td><td>5</td><td>0.230</td></tr><tr><td>COX11</td><td>5</td><td>0.387</td></tr><tr><td>ALDOA</td><td>5</td><td>0.433</td></tr><tr><td>RAN</td><td>5</td><td>0.439</td></tr><tr><td>RPS14</td><td>6</td><td>0.446</td></tr></tbody></table></div>
+      </div>
+      <div>
+        <h3>explicit_only: tightest / loosest genes</h3>
+        <div class="table-wrap"><table class=""><thead><tr><th>Tightest target</th><th>n</th><th>within cosine</th></tr></thead><tbody><tr><td>HSPA5</td><td>5</td><td>0.928</td></tr><tr><td>CAD</td><td>5</td><td>0.874</td></tr><tr><td>ATP5E</td><td>5</td><td>0.865</td></tr><tr><td>BCR</td><td>6</td><td>0.861</td></tr><tr><td>GNB2L1</td><td>5</td><td>0.855</td></tr></tbody></table></div>
+        <div class="table-wrap"><table class=""><thead><tr><th>Loosest target</th><th>n</th><th>within cosine</th></tr></thead><tbody><tr><td>RPS15</td><td>5</td><td>0.284</td></tr><tr><td>RPS14</td><td>6</td><td>0.355</td></tr><tr><td>EIF2S1</td><td>5</td><td>0.426</td></tr><tr><td>RPS18</td><td>5</td><td>0.447</td></tr><tr><td>ALDOA</td><td>5</td><td>0.486</td></tr></tbody></table></div>
+      </div>
+    </div>
+    <p class="note">置换检验 5000 次：cosine gap 与 top1 same-gene hit 均达到经验 p 值下限 0.0002，说明同 gene 聚集不是随机 group size 造成的。</p>
+  </section>
+
+  <section>
+    <h2>6. 综合解读</h2>
+    <div class="panel">
+      <p>activity 模块更明显地改善了均值型/方向型表达预测指标：MSE 降低，PCC_delta 大幅提高；但分布距离指标并未同步改善，说明 explicit activity condition 可能使平均 perturbation direction 更准确，却未完全改善细胞分布层面的生成匹配。</p>
+      <p>embedding 既编码 activity 强度，也编码 target identity。norm 与 activity 相关，而方向空间中同 gene sgRNA 明显聚集。sequence 层面，PAM distance 与 rG:dT 两个强 activity determinant 在 embedding_s 中能看到同向模式；较弱的 GC、neighbor G 和 first G 特征在当前训练子集中不稳定。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>附录：实验设计与参数</h2>
+    <h3>模型训练</h3>
+    <div class="table-wrap"><table class=""><thead><tr><th>Parameter</th><th>no_activity_200ep</th><th>explicit_only_200ep</th></tr></thead><tbody><tr><td>epochs</td><td>200</td><td>200</td></tr><tr><td>best epoch</td><td>199</td><td>193</td></tr><tr><td>best val loss</td><td>0.023</td><td>0.053</td></tr><tr><td>test loss</td><td>0.023</td><td>0.054</td></tr><tr><td>activity source</td><td>none</td><td>predicted</td></tr><tr><td>feature dim</td><td>0</td><td>208</td></tr><tr><td>activity supervision</td><td>False</td><td>True</td></tr><tr><td>device</td><td>cuda</td><td>cuda</td></tr></tbody></table></div>
+    <h3>Benchmark 设置</h3>
+    <div class="table-wrap"><table class=""><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td>train_path</td><td>C:\Users\Admin\myprojects\diff-project\reproducibility\prepared\splits\gse132080_train.h5ad</td></tr><tr><td>test_path</td><td>C:\Users\Admin\myprojects\diff-project\reproducibility\prepared\splits\gse132080_test.h5ad</td></tr><tr><td>perturbation_col</td><td>guide_identity</td></tr><tr><td>eval_level</td><td>guide</td></tr><tr><td>target_strategy</td><td>first_token</td></tr><tr><td>min_test_cells_per_condition</td><td>1</td></tr><tr><td>ddim_steps</td><td>5</td></tr><tr><td>max_control_cells</td><td>128</td></tr><tr><td>max_metric_cells</td><td>2000</td></tr><tr><td>common_degs_method</td><td>fallback</td></tr><tr><td>device</td><td>cuda</td></tr></tbody></table></div>
+    <h3>输入结果文件</h3>
+    <div class="table-wrap"><table class=""><thead><tr><th>Analysis</th><th>File</th></tr></thead><tbody><tr><td>6 metrics full</td><td>runs\benchmarks\explicit_only_vs_no_activity_200ep_6metrics_guide_all_full.json</td></tr><tr><td>Embedding/activity correlation</td><td>runs\benchmarks\embedding_activity_correlation_200ep_no_diralign\summary.json</td></tr><tr><td>Sequence relationship</td><td>runs\benchmarks\embedding_sequence_relationship_200ep_no_diralign\summary.json</td></tr><tr><td>Direction clustering</td><td>runs\benchmarks\embedding_direction_clustering_200ep_no_diralign\summary.json</td></tr></tbody></table></div>
+  </section>
+</main>
+</body>
+</html>

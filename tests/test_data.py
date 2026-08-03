@@ -1,13 +1,19 @@
 import unittest
 from pathlib import Path
 import sys
+import tempfile
 
 import numpy as np
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from perturbdiff.data import PerturbationDataset, encode_perturbation_labels
+from perturbdiff.data import (
+    PerturbationDataset,
+    encode_perturbation_labels,
+    load_guide_activity_lookup,
+    load_h5ad_perturbation_dataset,
+)
 
 
 class PerturbationDataTest(unittest.TestCase):
@@ -49,6 +55,7 @@ class PerturbationDataTest(unittest.TestCase):
             expression,
             ids,
             perturbation_labels=["control", "TP53_sg1", "MYC_sg1"],
+            activity_labels=["NT_1", "guide_a", "guide_b"],
             guide_features=guide_features,
             guide_activity_targets=guide_activity_targets,
         )
@@ -60,9 +67,49 @@ class PerturbationDataTest(unittest.TestCase):
         self.assertEqual(item["x0"].shape, (5,))
         self.assertEqual(item["perturbation_ids"].dtype, torch.long)
         self.assertEqual(item["perturbation_label"], "TP53_sg1")
+        self.assertEqual(item["activity_label"], "guide_a")
         self.assertEqual(item["guide_features"].shape, (4,))
         self.assertEqual(item["guide_activity_targets"].ndim, 0)
         self.assertNotIn("response_proxy", item)
+
+    def test_activity_lookup_rejects_missing_activity_column(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            table_path = Path(tmpdir) / "activity.tsv"
+            table_path.write_text("guide_identity\tactivity\nsg1\t0.5\n", encoding="utf-8")
+
+            with self.assertRaises(KeyError):
+                load_guide_activity_lookup(table_path, activity_col="missing_activity")
+
+    def test_h5ad_loader_can_separate_perturbation_and_activity_labels(self) -> None:
+        try:
+            import anndata as ad
+            import pandas as pd
+        except ImportError:
+            self.skipTest("anndata is not installed")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "data.h5ad"
+            ad.AnnData(
+                np.ones((3, 2), dtype=np.float32),
+                obs=pd.DataFrame(
+                    {
+                        "guide_family": ["control", "NANOG", "OCT4"],
+                        "guide_identity": ["NT_Control_1", "NANOG_1-1", "OCT4_1-38"],
+                    },
+                    index=["c1", "c2", "c3"],
+                ),
+            ).write_h5ad(path)
+
+            dataset, mapping = load_h5ad_perturbation_dataset(
+                path,
+                perturbation_col="guide_family",
+                activity_label_col="guide_identity",
+                target_strategy="raw",
+                control_labels=("control",),
+            )
+
+            self.assertEqual(mapping, {"NANOG": 1, "OCT4": 2})
+            self.assertEqual(dataset.perturbation_labels, ("control", "NANOG", "OCT4"))
+            self.assertEqual(dataset.activity_labels, ("NT_Control_1", "NANOG_1-1", "OCT4_1-38"))
 
 
 if __name__ == "__main__":

@@ -238,6 +238,9 @@ class PerturbDiffusionModelTest(unittest.TestCase):
 
         self.assertEqual(out["loss"].ndim, 0)
         self.assertEqual(out["guide_strength_loss"].ndim, 0)
+        self.assertIsNotNone(out["activity_embedding"])
+        self.assertEqual(out["activity_embedding"].shape, (3, cfg.guide_encoder.activity_condition_dim))
+        self.assertTrue(torch.allclose(out["activity_embedding"][0], torch.zeros_like(out["activity_embedding"][0])))
         out["loss"].backward()
 
         samples = model.sample_counterfactual(
@@ -248,7 +251,54 @@ class PerturbDiffusionModelTest(unittest.TestCase):
         )
         self.assertEqual(samples.shape, x0[:2].shape)
 
-    def test_predicted_activity_changes_target_delta_magnitude(self) -> None:
+    def test_predicted_activity_is_explicit_denoiser_condition(self) -> None:
+        torch.manual_seed(9)
+        cfg = ModelConfig(
+            n_genes=10,
+            n_perturbations=2,
+            latent_dim=4,
+            encoder_hidden_dims=(8,),
+            denoiser_hidden_dims=(16,),
+            guide_encoder=GuideFeatureEncoderConfig(
+                enabled=True,
+                feature_dim=1,
+                activity_source="predicted",
+                explicit_condition=True,
+                activity_condition_dim=3,
+                architecture="mlp",
+                hidden_dims=(),
+                doser_type="linear",
+            ),
+        )
+        model = PerturbDiffusionModel(cfg)
+        self.assertEqual(model.denoiser.activity_condition_dim, 3)
+        x0 = torch.randn(2, cfg.n_genes)
+        perturbation_ids = torch.tensor([1, 1])
+        guide_features = torch.tensor([[0.25], [1.0]])
+        condition = model.encode_condition(
+            x0,
+            perturbation_ids,
+            target_ids=perturbation_ids,
+            guide_features=guide_features,
+        )
+        self.assertIsNotNone(condition["activity_embedding"])
+        self.assertEqual(condition["activity_embedding"].shape, (2, 3))
+        self.assertFalse(
+            torch.allclose(condition["activity_embedding"][0], condition["activity_embedding"][1])
+        )
+
+        timesteps = torch.tensor([1, 1])
+        x_t = torch.randn_like(x0)
+        with_activity = model.denoiser(
+            x_t,
+            timesteps,
+            condition["z_pert"],
+            condition["activity_embedding"],
+        )
+        without_activity = model.denoiser(x_t, timesteps, condition["z_pert"])
+        self.assertFalse(torch.allclose(with_activity, without_activity))
+
+    def test_predicted_activity_does_not_change_target_delta_magnitude(self) -> None:
         torch.manual_seed(8)
         cfg = ModelConfig(
             n_genes=10,
@@ -285,10 +335,98 @@ class PerturbDiffusionModelTest(unittest.TestCase):
             guide_features=guide_features,
         )
 
+        self.assertTrue(torch.allclose(condition["delta"], condition["delta_base"]))
+        self.assertTrue(torch.allclose(condition["delta"][0], condition["delta"][1]))
+        self.assertIsNotNone(condition["activity_embedding"])
+        self.assertFalse(
+            torch.allclose(condition["activity_embedding"][0], condition["activity_embedding"][1])
+        )
+
+    def test_activity_delta_scaling_can_be_enabled_for_legacy_behavior(self) -> None:
+        torch.manual_seed(10)
+        cfg = ModelConfig(
+            n_genes=10,
+            n_perturbations=2,
+            latent_dim=4,
+            encoder_hidden_dims=(8,),
+            denoiser_hidden_dims=(16,),
+            guide_encoder=GuideFeatureEncoderConfig(
+                enabled=True,
+                feature_dim=1,
+                activity_source="predicted",
+                explicit_condition=False,
+                activity_scales_delta=True,
+                architecture="mlp",
+                hidden_dims=(),
+                doser_type="linear",
+            ),
+        )
+        model = PerturbDiffusionModel(cfg)
+        with torch.no_grad():
+            model.perturbation.embedding.weight[1].fill_(2.0)
+            self.assertIsNotNone(model.guide_strength)
+            linear = model.guide_strength.network[0]
+            self.assertIsInstance(linear, torch.nn.Linear)
+            linear.weight.fill_(1.0)
+            linear.bias.zero_()
+
+        x0 = torch.randn(2, cfg.n_genes)
+        perturbation_ids = torch.tensor([1, 1])
+        guide_features = torch.tensor([[0.25], [1.0]])
+        condition = model.encode_condition(
+            x0,
+            perturbation_ids,
+            target_ids=perturbation_ids,
+            guide_features=guide_features,
+        )
+
         self.assertLess(
             float(condition["delta"][0].norm().detach()),
             float(condition["delta"][1].norm().detach()),
         )
+        self.assertIsNone(condition["activity_embedding"])
+
+    def test_direct_activity_mode_uses_scalar_features(self) -> None:
+        torch.manual_seed(11)
+        cfg = ModelConfig(
+            n_genes=10,
+            n_perturbations=2,
+            latent_dim=4,
+            encoder_hidden_dims=(8,),
+            denoiser_hidden_dims=(16,),
+            guide_encoder=GuideFeatureEncoderConfig(
+                enabled=True,
+                feature_dim=1,
+                activity_source="direct",
+                explicit_condition=True,
+                activity_condition_dim=3,
+                architecture="mlp",
+                hidden_dims=(),
+                doser_type="linear",
+            ),
+        )
+        model = PerturbDiffusionModel(cfg)
+        x0 = torch.randn(2, cfg.n_genes)
+        perturbation_ids = torch.tensor([1, 1])
+        guide_features = torch.tensor([[0.25], [1.0]])
+
+        out = model.training_losses(
+            x0,
+            perturbation_ids,
+            target_ids=perturbation_ids,
+            guide_features=guide_features,
+        )
+
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(out["activity_embedding"].shape, (2, 3))
+        self.assertFalse(torch.allclose(out["activity_embedding"][0], out["activity_embedding"][1]))
+        samples = model.sample_counterfactual(
+            x_ctrl=x0[:2],
+            target_ids=torch.tensor([1, 2]),
+            guide_features=guide_features,
+            steps=5,
+        )
+        self.assertEqual(samples.shape, x0[:2].shape)
 
 
 if __name__ == "__main__":

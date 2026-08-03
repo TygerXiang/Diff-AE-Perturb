@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -77,8 +78,20 @@ def e_distance(x: np.ndarray, y: np.ndarray, *, max_cells: int, rng: np.random.G
 
 def load_model(path: Path, device: torch.device) -> tuple[PerturbDiffusionModel, dict[str, int]]:
     state = torch.load(path, map_location=device, weights_only=False)
-    model = PerturbDiffusionModel(state["model_config"]).to(device)
-    model.load_state_dict(state["model_state_dict"], strict=False)
+    cfg = state["model_config"]
+    state_dict = state["model_state_dict"]
+    has_activity_condition = any(key.startswith("activity_condition.") for key in state_dict)
+    if getattr(cfg.guide_encoder, "enabled", False):
+        cfg = replace(
+            cfg,
+            guide_encoder=replace(
+                cfg.guide_encoder,
+                explicit_condition=has_activity_condition,
+                activity_scales_delta=not has_activity_condition,
+            ),
+        )
+    model = PerturbDiffusionModel(cfg).to(device)
+    model.load_state_dict(state_dict, strict=False)
     model.eval()
     return model, {str(key): int(value) for key, value in state["perturbation_mapping"].items()}
 
