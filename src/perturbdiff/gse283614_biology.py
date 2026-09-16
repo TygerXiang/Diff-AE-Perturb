@@ -469,6 +469,40 @@ def build_rank_stratified_guide_folds(
     return assignments
 
 
+def build_endpoint_interpolation_partition(
+    dosage: pd.DataFrame,
+    *,
+    endpoint_fraction: float = 0.30,
+) -> dict[str, set[str]]:
+    """Hold out the middle of each target's dose range at guide level.
+
+    The outer dose bands form the training domain.  The guide immediately
+    inside each extreme is reserved for validation, so model selection never
+    observes a middle-dose guide.  All remaining middle guides are test-only.
+    """
+
+    if not 0.0 < endpoint_fraction < 0.5:
+        raise ValueError("endpoint_fraction must be between 0 and 0.5")
+    targeting = dosage.loc[~dosage["is_control"]].copy()
+    partitions = {"train": set(), "val": set(), "test": set()}
+    for target, group in targeting.groupby("dose_target", sort=True):
+        ordered = group.sort_values(["knockdown_fraction", "guide_identity"])
+        guides = ordered["guide_identity"].astype(str).tolist()
+        n_endpoint = max(2, int(np.ceil(len(guides) * endpoint_fraction)))
+        if 2 * n_endpoint >= len(guides):
+            raise ValueError(
+                f"Target {target!r} has too few guides for endpoint interpolation: {len(guides)}"
+            )
+        low = guides[:n_endpoint]
+        high = guides[-n_endpoint:]
+        partitions["val"].update((low[-1], high[0]))
+        partitions["train"].update(low[:-1])
+        partitions["train"].update(high[1:])
+        partitions["test"].update(guides[n_endpoint:-n_endpoint])
+    validate_fold_partition(partitions["train"], partitions["val"], partitions["test"])
+    return partitions
+
+
 def validate_fold_partition(
     train_guides: Iterable[str],
     val_guides: Iterable[str],

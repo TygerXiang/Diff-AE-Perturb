@@ -7,7 +7,6 @@ to implementation files.
 | --- | --- |
 | Semantic encoder `E_phi(x)` | `src/perturbdiff/modules.py::SemanticEncoder` |
 | Perturbation delta table `W[g]` | `src/perturbdiff/modules.py::PerturbationModule` |
-| scGen-style latent delta estimation | `PerturbDiffusionModel.initialize_perturbation_from_latent_shift` plus training scripts |
 | Forward diffusion | `src/perturbdiff/diffusion.py::GaussianDiffusion.q_sample` |
 | Conditional denoising network | `src/perturbdiff/modules.py::ConditionalDenoiserMLP` |
 | Diffusion reconstruction loss | `src/perturbdiff/losses.py::weighted_mse_loss` |

@@ -129,11 +129,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--save-every", type=int, default=20)
-    parser.add_argument(
-        "--skip-delta-init",
-        action="store_true",
-        help="Skip scGen-style latent mean-difference initialization for perturbation embeddings.",
-    )
     return parser.parse_args()
 
 
@@ -334,35 +329,6 @@ def prepare_activity_conditioning(
 
 
 @torch.no_grad()
-def initialize_perturbation_embeddings(
-    model: PerturbDiffusionModel,
-    dataset,
-    *,
-    batch_size: int,
-    num_workers: int,
-    device: torch.device,
-) -> dict[str, dict[int, int]]:
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    zs: list[torch.Tensor] = []
-    ids: list[torch.Tensor] = []
-    model.eval()
-    for batch in loader:
-        x0 = batch["x0"].to(device)
-        perturbation_ids = batch["perturbation_ids"].to(device)
-        z_sem = model.encoder(x0)
-        zs.append(z_sem.detach().cpu())
-        ids.append(perturbation_ids.detach().cpu())
-    z_sem_all = torch.cat(zs, dim=0)
-    perturbation_ids_all = torch.cat(ids, dim=0)
-    # We initialize from the whole training set instead of one batch because we
-    # want a stable estimate of each perturbation's average latent shift.
-    return model.initialize_perturbation_from_latent_shift(
-        z_sem_all.to(device),
-        perturbation_ids_all.to(device),
-    )
-
-
-@torch.no_grad()
 def compute_control_expression_mean(
     dataset,
     *,
@@ -547,16 +513,6 @@ def main() -> None:
     )
     device = torch.device(args.device)
     model = PerturbDiffusionModel(cfg).to(device)
-    if args.skip_delta_init:
-        perturbation_init_counts = {"initialized": False}
-    else:
-        perturbation_init_counts = initialize_perturbation_embeddings(
-            model,
-            train_dataset,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            device=device,
-        )
     if args.activity_source in {"predicted", "direct"}:
         model.initialize_guide_strength_directions_from_perturbation_embeddings(
             torch.arange(0, len(mapping) + 1, dtype=torch.long, device=device)
@@ -586,8 +542,6 @@ def main() -> None:
 
     with (output_dir / "perturbation_mapping.json").open("w", encoding="utf-8") as handle:
         json.dump(mapping, handle, indent=2, sort_keys=True)
-    with (output_dir / "perturbation_init_counts.json").open("w", encoding="utf-8") as handle:
-        json.dump(perturbation_init_counts, handle, indent=2, sort_keys=True)
 
     history: list[dict[str, float | int]] = []
     best_val = float("inf")
@@ -644,7 +598,6 @@ def main() -> None:
                     "model_state_dict": model.state_dict(),
                     "model_config": cfg,
                     "perturbation_mapping": mapping,
-                    "perturbation_init_counts": perturbation_init_counts,
                     "epoch": epoch,
                     "val_loss": best_val,
                 },
@@ -657,7 +610,6 @@ def main() -> None:
                     "model_state_dict": model.state_dict(),
                     "model_config": cfg,
                     "perturbation_mapping": mapping,
-                    "perturbation_init_counts": perturbation_init_counts,
                     "epoch": epoch,
                     "train_loss": train_loss,
                     "val_loss": val_metrics["loss"],
@@ -691,7 +643,6 @@ def main() -> None:
         "best_val_loss": best_val,
         "test_metrics": test_metrics,
         "history": history,
-        "perturbation_init_counts": perturbation_init_counts,
         "lambda_semantic_align": args.lambda_semantic_align,
         "lambda_direction_align": args.lambda_direction_align,
         "reconstruction_loss": args.reconstruction_loss,

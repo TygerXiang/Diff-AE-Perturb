@@ -1,0 +1,15 @@
+Metadata-Version: 2.1
+Name: Azimuth
+Version: 2.0
+Summary: Machine Learning-Based Predictive Modelling of CRISPR/Cas9 guide efficiency
+Author: Nicolo Fusi and Jennifer Listgarten
+Author-email: fusi@microsoft.com, jennl@microsoft.com
+License: BSD
+Requires-Dist: scipy
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: nose
+Requires-Dist: scikit-learn >=0.17.1
+Requires-Dist: pandas
+Requires-Dist: biopython
+

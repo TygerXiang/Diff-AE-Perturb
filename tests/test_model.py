@@ -178,28 +178,6 @@ class PerturbDiffusionModelTest(unittest.TestCase):
         self.assertEqual(out["direction_align_loss"].ndim, 0)
         self.assertGreaterEqual(float(out["direction_align_loss"]), 0.0)
 
-    def test_latent_mean_shift_initializes_perturbation_embedding(self) -> None:
-        cfg = small_config()
-        model = PerturbDiffusionModel(cfg)
-        z_basal = torch.tensor(
-            [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
-                [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
-                [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
-            ]
-        )
-        perturbation_ids = torch.tensor([0, 0, 1, 1])
-
-        init_stats = model.initialize_perturbation_from_latent_shift(z_basal, perturbation_ids)
-
-        self.assertEqual(init_stats["counts"][0], 2)
-        self.assertEqual(init_stats["counts"][1], 2)
-        self.assertTrue(torch.allclose(model.perturbation.embedding.weight[0], torch.zeros(8)))
-        expected_delta = torch.full((8,), 3.0)
-        self.assertTrue(torch.allclose(model.perturbation.embedding.weight[1], expected_delta))
-        self.assertTrue(torch.allclose(model.perturbation.embedding.weight[2], torch.zeros(8)))
-
     def test_predicted_activity_cnn_runs_inside_model(self) -> None:
         torch.manual_seed(7)
         feature_dim = guide_cnn_feature_dim(sequence_length=26)

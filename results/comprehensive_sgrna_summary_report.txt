@@ -1,0 +1,42 @@
+======================================================================
+sgRNA Comprehensive Analysis Summary
+======================================================================
+
+1. DATASET OVERVIEW
+----------------------------------------------------------------------
+Total guides analyzed: 179
+
+  GSE132080: 130 guides
+  GSE283614: 49 guides
+
+2. SEQUENCE INFORMATION
+----------------------------------------------------------------------
+  sgRNA sequences: 176
+  Target genomic sequences: 95
+  PAM sequences: 95
+
+3. MISMATCH ANALYSIS
+----------------------------------------------------------------------
+  Guides with mismatch data: 95
+    1 mismatches: 95 guides
+  Mean distance to PAM: 9.64
+
+4. MODEL EMBEDDINGS
+----------------------------------------------------------------------
+  Guides with embedding_norm: 130
+  Guides with virtual_scale: 130
+  Mean embedding_norm: 0.1023
+
+5. ACTIVITY SCORES
+----------------------------------------------------------------------
+  GSE132080 (mean_relative_gamma): 95 guides
+  GSE283614 (relative_activity_mean): 33 guides
+
+6. KEY CORRELATIONS
+----------------------------------------------------------------------
+  Embedding_norm vs activity (GSE132080):
+    Pearson r = 0.4358, Spearman rho = 0.5238
+  Distance_to_PAM vs activity (GSE132080):
+    Pearson r = 0.4500, Spearman rho = 0.5090
+
+======================================================================

@@ -24,10 +24,6 @@ def main() -> None:
     x0 = torch.randn(16, cfg.n_genes)
     perturbation_ids = torch.tensor([0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 1, 2, 3, 4, 5])
 
-    with torch.no_grad():
-        z_sem = model.encoder(x0)
-        model.initialize_perturbation_from_latent_shift(z_sem, perturbation_ids)
-
     out = model.training_losses(x0, perturbation_ids)
     out["loss"].backward()
     optim.step()

@@ -11,7 +11,7 @@ from .modules import ConditionalDenoiserMLP, GeneralizedSigmoid, PerturbationMod
 
 
 class PerturbDiffusionModel(nn.Module):
-    """Conditional DDIM model with scGen-style latent perturbation deltas."""
+    """Conditional DDIM model with learnable latent perturbation deltas."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -129,38 +129,6 @@ class PerturbDiffusionModel(nn.Module):
                 )
             )
             self._has_control_expression_mean = True
-
-    @torch.no_grad()
-    def initialize_perturbation_from_latent_shift(
-        self,
-        z_sem: torch.Tensor,
-        perturbation_ids: torch.Tensor,
-    ) -> dict[str, dict[int, int]]:
-        if z_sem.ndim != 2:
-            raise ValueError("z_sem must be a 2D tensor")
-        if z_sem.shape[0] != perturbation_ids.shape[0]:
-            raise ValueError("z_sem and perturbation_ids must have matching batch size")
-
-        control_mask = perturbation_ids == 0
-        if not control_mask.any():
-            raise ValueError("control cells are required to initialize perturbation embeddings")
-        control_mean = z_sem[control_mask].mean(dim=0)
-
-        # Start every perturbation from a dataset-level mean shift relative to
-        # controls. This gives the embedding table a meaningful direction before
-        # gradient-based training fine-tunes it.
-        target_means = control_mean.repeat(self.config.n_perturbations + 1, 1)
-        counts: dict[int, int] = {0: int(control_mask.sum().item())}
-        for target_id in range(1, self.config.n_perturbations + 1):
-            mask = perturbation_ids == target_id
-            count = int(mask.sum().item())
-            counts[target_id] = count
-            if count == 0:
-                continue
-            target_means[target_id] = z_sem[mask].mean(dim=0)
-
-        self.perturbation.initialize_from_latent_shift(control_mean, target_means)
-        return {"counts": counts}
 
     def encode_condition(
         self,

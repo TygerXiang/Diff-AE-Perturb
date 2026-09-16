@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from perturbdiff.gse283614_biology import (
     benjamini_hochberg,
+    build_endpoint_interpolation_partition,
     build_rank_stratified_guide_folds,
     fit_response_models,
     hill_curve,
@@ -65,6 +66,35 @@ class GSE283614BiologyTest(unittest.TestCase):
             train = set(assignments) - test - val
             validate_fold_partition(train, val, test)
             self.assertEqual({guide.split("_", 1)[0] for guide in test}, {"NANOG", "OCT4"})
+
+    def test_endpoint_partition_trains_on_extremes_and_tests_middle(self) -> None:
+        rows = []
+        for target in ("NANOG", "OCT4"):
+            for idx in range(10):
+                rows.append(
+                    {
+                        "dose_target": target,
+                        "guide_identity": f"{target}_{idx}",
+                        "knockdown_fraction": idx / 9,
+                        "is_control": False,
+                    }
+                )
+        split = build_endpoint_interpolation_partition(
+            pd.DataFrame(rows), endpoint_fraction=0.30
+        )
+        self.assertEqual(
+            split["train"],
+            {f"{target}_{idx}" for target in ("NANOG", "OCT4") for idx in (0, 1, 8, 9)},
+        )
+        self.assertEqual(
+            split["val"],
+            {f"{target}_{idx}" for target in ("NANOG", "OCT4") for idx in (2, 7)},
+        )
+        self.assertEqual(
+            split["test"],
+            {f"{target}_{idx}" for target in ("NANOG", "OCT4") for idx in (3, 4, 5, 6)},
+        )
+        validate_fold_partition(split["train"], split["val"], split["test"])
 
     def test_fold_validation_detects_leakage(self) -> None:
         with self.assertRaises(ValueError):

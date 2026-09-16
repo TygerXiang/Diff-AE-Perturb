@@ -1,0 +1,85 @@
+==============================================================================
+COMPREHENSIVE sgRNA TABLE -- FINAL VALIDATION
+==============================================================================
+file   : C:\Users\Admin\myprojects\Diff-AE-Perturb\results\comprehensive_sgrna_table.csv
+rows   : 179   columns: 66
+
+by dataset:
+  GSE132080    130
+  GSE283614    49
+
+------------------------------------------------------------------------------
+1. FIELD COMPLETENESS (real guides only, n=177)
+------------------------------------------------------------------------------
+  sgrna_sequence                176/177  ( 99.4%)  #######################################
+  target_genomic_sequence       169/177  ( 95.5%)  ######################################
+  pam_sequence                  169/177  ( 95.5%)  ######################################
+  reference_source              177/177  (100.0%)  ########################################
+  n_mismatches                  128/177  ( 72.3%)  ############################
+  mismatch_positions_from_pam   103/177  ( 58.2%)  #######################
+  mismatch_distance_to_pam      103/177  ( 58.2%)  #######################
+  min_distance_to_pam           103/177  ( 58.2%)  #######################
+  embedding_norm                128/177  ( 72.3%)  ############################
+  virtual_scale                 128/177  ( 72.3%)  ############################
+  mean_relative_gamma            95/177  ( 53.7%)  #####################
+  relative_activity_mean         33/177  ( 18.6%)  #######
+
+------------------------------------------------------------------------------
+2. UNRESOLVED ROWS -- and why
+------------------------------------------------------------------------------
+  GSE283614  NT_Control_3           type=control  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  NT_Control_5           type=control  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  NT_Control_4           type=control  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  unassigned             type=unknown  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  NT_Control_1           type=control  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  NT_Control_6           type=control  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  NT_Control_7           type=control  -> no genomic target (non-targeting control / no coordinate)
+  GSE283614  NT_Control_2           type=control  -> no genomic target (non-targeting control / no coordinate)
+
+------------------------------------------------------------------------------
+3. GSE132080 SEQUENCE & MISMATCH VALIDATION
+------------------------------------------------------------------------------
+  guides                              : 128
+  reference protospacer (Table S2 _00): 128
+  PAM 3-mer available                 : 128
+  mismatch call == published Table S2 : 103/103 (100.0%)
+
+  PAM composition:
+    AGG: 51
+    CGG: 41
+    GGG: 26
+    TGG: 10
+
+  mismatch count:
+    0 mismatch(es): 25
+    1 mismatch(es): 103
+
+  distance from mismatch to PAM: mean=9.64  median=10  range=0-18
+  distribution:
+     0-4  (PAM-proximal)     17  ( 16.5%)  ####
+     5-9                     29  ( 28.2%)  ########
+    10-14                    44  ( 42.7%)  ############
+    15-19 (PAM-distal)       13  ( 12.6%)  ###
+
+------------------------------------------------------------------------------
+4. GSE283614 SEQUENCE COVERAGE
+------------------------------------------------------------------------------
+  guides                              : 49
+  with hg38 target sequence + PAM     : 41
+  targeting guides resolved           : 33/33
+
+------------------------------------------------------------------------------
+5. CORRELATIONS (GSE132080, experimental gamma)
+------------------------------------------------------------------------------
+  model virtual_scale  vs activity               n= 95  r=+0.606 (p=7.4e-11)  rho=+0.680 (p=3.6e-14)
+  model embedding norm vs activity               n= 95  r=+0.436 (p=1.0e-05)  rho=+0.524 (p=5.1e-08)
+  mismatch->PAM distance vs activity             n= 95  r=+0.450 (p=4.8e-06)  rho=+0.509 (p=1.4e-07)
+  n mismatches          vs activity              n= 95  (no variance in this subset)
+  sgRNA GC content      vs activity              n= 95  r=+0.062 (p=5.5e-01)  rho=+0.052 (p=6.1e-01)
+
+------------------------------------------------------------------------------
+6. CORRELATIONS (GSE283614, relative activity)
+------------------------------------------------------------------------------
+  sgRNA GC content vs activity                   n= 33  r=+0.364 (p=3.7e-02)  rho=+0.400 (p=2.1e-02)
+
+==============================================================================

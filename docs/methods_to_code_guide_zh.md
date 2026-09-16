@@ -74,7 +74,6 @@ dataset = load_dataset(...)
 cfg = ModelConfig(...)
 model = PerturbDiffusionModel(cfg)
 
-initialize_perturbation_embeddings(...)
 build_signature_gene_weights(...)
 
 for epoch in range(...):
@@ -348,53 +347,14 @@ dataclass 的好处是：
 
 这个仓库虽然不大，但模块划分是比较健康的。
 
-## 9. 第六步：为什么要先初始化 perturbation embedding
+## 9. 第六步：准备训练
 
-对应代码位置：
+模型构建完成后，`PerturbationModule` 中的 embedding 表从随机初值开始，
+control row 固定为零。当前流程不再使用训练集 control/target 的 latent 均值差
+做预初始化，因为训练开始时 encoder 的表示尚未形成可解释且稳定的统计基准。
 
-- [train_with_split.py](C:/Users/Admin/myprojects/Diff-AE-Perturb/scripts/train_with_split.py): `initialize_perturbation_embeddings`
-- [model.py](C:/Users/Admin/myprojects/Diff-AE-Perturb/src/perturbdiff/model.py): `initialize_perturbation_from_latent_shift`
-- [modules.py](C:/Users/Admin/myprojects/Diff-AE-Perturb/src/perturbdiff/modules.py): `initialize_from_latent_shift`
-
-这是整个项目里“方法和实现强绑定”的一个关键点。
-
-### 9.1 它在做什么
-
-代码不是随机初始化每个 perturbation 向量后直接训练，而是先做一件更有生物含义的事情：
-
-1. 用 encoder 把所有训练细胞编码到 latent 空间
-2. 求 control 细胞的平均 latent
-3. 求每个 perturbation 条件下细胞的平均 latent
-4. 两者相减，得到该 perturbation 的初始偏移向量
-
-也就是：
-
-```text
-delta_g = mean(latent | perturbation=g) - mean(latent | control)
-```
-
-### 9.2 为什么这样做
-
-因为这比纯随机初始化更“有方向感”。
-
-随机初始化的问题是：
-
-- 参数一开始没有任何生物学含义
-- 模型需要花更多训练过程才能自己摸索出“control 到 perturbation 的方向”
-
-当前这种做法借鉴了 scGen 风格的 latent arithmetic，优势是：
-
-- 初始化更合理
-- 解释性更强
-- 训练初期更稳定
-
-替代方案：
-
-- 纯随机初始化
-- 单独预训练 perturbation embedding
-- 用更复杂的元学习/对比学习方法初始化
-
-但对这个项目来说，当前做法在“简单”和“有解释性”之间是个很不错的平衡。
+随后训练脚本构建必要的权重和可选条件特征，创建数据加载器与优化器，
+并让 encoder、perturbation embedding 和 denoiser 在训练目标下联合优化。
 
 ## 10. 第七步：训练时一个 batch 如何流过模型
 
@@ -835,9 +795,11 @@ MLP 的优点：
 
 因为它是整个 perturbation 空间的参考原点。
 
-### 17.2 为什么 perturbation embedding 要做 latent mean shift 初始化
+### 17.2 为什么 perturbation embedding 直接从随机初值开始
 
-因为这样比随机初始化更有解释性，也更接近“从 control 到 perturbation 的方向”。
+因为训练开始时 encoder 仍未学习到稳定的语义空间，直接计算 target/control
+均值差容易把初始化和数据组成、细胞状态及未训练表示混在一起。将 embedding
+交给扩散重构及相关对齐损失学习，能让条件向量与整体训练目标保持一致。
 
 ### 17.3 为什么训练时不用再给 `z_sem` 加一次 `delta`
 
@@ -916,7 +878,7 @@ MLP 的优点：
   - 为什么 `target_ids` 和 `perturbation_ids` 可能不同
   - 为什么要把稀疏行转成 dense tensor
 - `modules.py`
-  - latent shift 初始化的含义
+  - embedding 表初始化与 control row 约束
   - 训练时为什么不重复加 perturbation
   - 推理时为什么要“remove source, add target”
 - `model.py`
@@ -930,7 +892,7 @@ MLP 的优点：
 - `losses.py`
   - weighted MSE 为什么要按样本总权重归一化
 - `train_with_split.py`
-  - 为什么 embedding 初始化要看整个训练集
+  - 为什么 embedding 初始化不依赖整个训练集
   - 为什么 train/val/test loader 分开
   - 为什么 `training_losses()` 返回的不只是一个标量 loss
 

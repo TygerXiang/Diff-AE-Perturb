@@ -77,43 +77,6 @@ class PerturbationModule(nn.Module):
         with torch.no_grad():
             self.embedding.weight[0].zero_()
 
-    @torch.no_grad()
-    def set_base_embeddings(self, base_embeddings: torch.Tensor) -> None:
-        if base_embeddings.shape != self.embedding.weight.shape:
-            raise ValueError(
-                "base_embeddings must have shape "
-                f"{tuple(self.embedding.weight.shape)}"
-            )
-        self.embedding.weight.copy_(
-            base_embeddings.to(
-                device=self.embedding.weight.device,
-                dtype=self.embedding.weight.dtype,
-            )
-        )
-        self.embedding.weight[0].zero_()
-
-    @torch.no_grad()
-    def initialize_from_latent_shift(
-        self,
-        control_mean: torch.Tensor,
-        target_means: torch.Tensor,
-    ) -> None:
-        if control_mean.ndim != 1:
-            raise ValueError("control_mean must be a 1D tensor")
-        if target_means.shape != self.embedding.weight.shape:
-            raise ValueError(
-                "target_means must have shape "
-                f"{tuple(self.embedding.weight.shape)}"
-            )
-        delta = target_means.clone()
-        delta = delta.to(device=self.embedding.weight.device, dtype=self.embedding.weight.dtype)
-        control_mean = control_mean.to(device=self.embedding.weight.device, dtype=self.embedding.weight.dtype)
-        # scGen-style initialization: each perturbation starts as
-        # mean(latent | perturbation) - mean(latent | control).
-        delta = delta - control_mean.unsqueeze(0)
-        delta[0].zero_()
-        self.set_base_embeddings(delta)
-
     def forward(
         self,
         z_sem: torch.Tensor,

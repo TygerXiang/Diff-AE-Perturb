@@ -64,11 +64,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--save-every", type=int, default=1)
-    parser.add_argument(
-        "--skip-delta-init",
-        action="store_true",
-        help="Skip scGen-style latent mean-difference initialization for perturbation embeddings.",
-    )
     return parser.parse_args()
 
 
@@ -90,33 +85,6 @@ def load_dataset(args: argparse.Namespace):
         barcode_col=args.barcode_col,
         control_labels=control_labels,
         target_strategy=args.target_strategy,
-    )
-
-
-@torch.no_grad()
-def initialize_perturbation_embeddings(
-    model: PerturbDiffusionModel,
-    dataset,
-    *,
-    batch_size: int,
-    num_workers: int,
-    device: torch.device,
-) -> dict[str, dict[int, int] | dict[int, float]]:
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    zs: list[torch.Tensor] = []
-    ids: list[torch.Tensor] = []
-    model.eval()
-    for batch in loader:
-        x0 = batch["x0"].to(device)
-        perturbation_ids = batch["perturbation_ids"].to(device)
-        z_sem = model.encoder(x0)
-        zs.append(z_sem.detach().cpu())
-        ids.append(perturbation_ids.detach().cpu())
-    z_sem_all = torch.cat(zs, dim=0)
-    perturbation_ids_all = torch.cat(ids, dim=0)
-    return model.initialize_perturbation_from_latent_shift(
-        z_sem_all.to(device),
-        perturbation_ids_all.to(device),
     )
 
 
@@ -178,16 +146,6 @@ def main() -> None:
     )
     device = torch.device(args.device)
     model = PerturbDiffusionModel(cfg).to(device)
-    if args.skip_delta_init:
-        perturbation_init_counts = {"initialized": False}
-    else:
-        perturbation_init_counts = initialize_perturbation_embeddings(
-            model,
-            dataset,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            device=device,
-        )
     signature_gene_weights = build_signature_gene_weights(
         dataset.gene_names if dataset.gene_names is not None else tuple(str(i) for i in range(dataset.n_genes)),
         perturbation_mapping,
@@ -207,8 +165,6 @@ def main() -> None:
 
     with (output_dir / "perturbation_mapping.json").open("w") as handle:
         json.dump(perturbation_mapping, handle, indent=2, sort_keys=True)
-    with (output_dir / "perturbation_init_counts.json").open("w", encoding="utf-8") as handle:
-        json.dump(perturbation_init_counts, handle, indent=2, sort_keys=True)
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -237,7 +193,6 @@ def main() -> None:
                     "model_state_dict": model.state_dict(),
                     "model_config": cfg,
                     "perturbation_mapping": perturbation_mapping,
-                    "perturbation_init_counts": perturbation_init_counts,
                     "epoch": epoch,
                     "loss": mean_loss,
                 },

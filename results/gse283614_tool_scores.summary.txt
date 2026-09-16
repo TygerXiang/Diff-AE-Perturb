@@ -1,0 +1,8 @@
+GSE283614 batch sgRNA scoring summary
+=============================================
+unique guides: 49
+20-nt sequences: 48
+hg38 contexts matched: 41
+NGG PAMs: 41
+measured CRISPRi activity: 33
+Sequence-only columns are heuristics, not CRISPRi efficacy predictions.

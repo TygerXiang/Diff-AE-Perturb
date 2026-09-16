@@ -12,11 +12,8 @@ z_condition = E(x_control) + delta_g
 x_pred = DDIM(z_condition)
 ```
 
-The perturbation vector `delta_g` is estimated in the scGen style:
-
-```text
-delta_g = mean(E(x) | condition = g) - mean(E(x) | control)
-```
+The perturbation vector `delta_g` is a learnable embedding initialized randomly
+when the model is constructed and optimized jointly with the diffusion objective.
 
 Perturbation labels can represent target genes or individual sgRNAs. To preserve
 sgRNA-level conditions for future strength modeling, use `--target-strategy raw`.
@@ -33,6 +30,20 @@ sgRNA-level conditions for future strength modeling, use `--target-strategy raw`
   sampling.
 
 ## Quick Start
+
+The default training environment is the local CUDA environment
+`C:\Users\Admin\myprojects\diff-project\.conda\envs\perturbdiff-gse132080`.
+Use its `python.exe` for GPU training; the commands below assume the repository
+is checked out at `C:\Users\Admin\myprojects\Diff-AE-Perturb`:
+
+```powershell
+$PerturbDiffPython = "C:\Users\Admin\myprojects\diff-project\.conda\envs\perturbdiff-gse132080\python.exe"
+& $PerturbDiffPython -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+The environment should report `True` and the installed NVIDIA GPU. Training
+scripts select CUDA automatically when available; pass `--device cuda` to make
+the choice explicit.
 
 ```bash
 pip install -e ".[dev]"
@@ -222,10 +233,6 @@ model = PerturbDiffusionModel(cfg)
 x0 = torch.randn(32, cfg.n_genes)
 perturbation_ids = torch.randint(0, cfg.n_perturbations + 1, (32,))
 
-with torch.no_grad():
-    z_sem = model.encoder(x0)
-    model.initialize_perturbation_from_latent_shift(z_sem, perturbation_ids)
-
 out = model.training_losses(x0, perturbation_ids)
 out["loss"].backward()
 
@@ -247,4 +254,4 @@ than software unless software was directly reused:
 
 - DDPM: Ho, Jain, and Abbeel, NeurIPS 2020.
 - DDIM: Song, Meng, and Ermon, ICLR 2021.
-- scGen-style latent vector arithmetic for perturbation deltas.
+- latent vector arithmetic for counterfactual perturbation deltas.
