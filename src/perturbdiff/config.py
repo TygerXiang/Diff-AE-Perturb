@@ -47,6 +47,14 @@ class ModelConfig:
     encoder_hidden_dims: tuple[int, ...] = (512, 256)
     denoiser_hidden_dims: tuple[int, ...] = (1024, 1024)
     dropout: float = 0.0
+    # How the counterfactual conditioning vector is anchored to a control state.  This field
+    # is part of the checkpoint so training and inference cannot disagree about it.
+    #   "per_cell"     : each perturbed cell is paired with one control cell's encoder latent
+    #   "batch_mean"   : every perturbed cell in a batch shares the batch control mean latent
+    #   "encoder_self" : legacy ablation -- condition on the cell's own encoding, which leaks the
+    #                    denoising target into the condition and leaves the offset untrained.
+    #                    Infer-ence treats it like "per_cell".  Do not use for new models.
+    control_reference: str = "per_cell"
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
     losses: TrainingLossConfig = field(default_factory=TrainingLossConfig)
     guide_encoder: GuideFeatureEncoderConfig = field(default_factory=GuideFeatureEncoderConfig)

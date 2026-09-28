@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -15,6 +17,7 @@ import scgen
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from perturbdiff.config import GuideFeatureEncoderConfig
 from perturbdiff.model import PerturbDiffusionModel
 
 
@@ -135,6 +138,29 @@ def evaluate_target(
     return evaluate_subset(y_true_mean, y_pred_mean)
 
 
+def compatible_config_from_state(state: dict) -> object:
+    """Restore defaults for fields absent from older serialized configs."""
+    cfg = state["model_config"]
+    state_dict = state["model_state_dict"]
+    if not hasattr(cfg, "guide_encoder"):
+        cfg = replace(cfg, guide_encoder=GuideFeatureEncoderConfig())
+    if not hasattr(cfg, "control_reference"):
+        # Legacy checkpoints never trained the counterfactual path; "per_cell" reproduces the
+        # inference behaviour they were evaluated with.
+        cfg = replace(cfg, control_reference="per_cell")
+    if getattr(cfg.guide_encoder, "enabled", False):
+        has_activity_condition = any(key.startswith("activity_condition.") for key in state_dict)
+        cfg = replace(
+            cfg,
+            guide_encoder=replace(
+                cfg.guide_encoder,
+                explicit_condition=has_activity_condition,
+                activity_scales_delta=not has_activity_condition,
+            ),
+        )
+    return cfg
+
+
 def main() -> None:
     args = parse_args()
     np.random.seed(args.seed)
@@ -169,17 +195,24 @@ def main() -> None:
         n_layers=args.scgen_n_layers,
         dropout_rate=args.scgen_dropout_rate,
     )
-    scgen_model.train(
-        max_epochs=args.scgen_epochs,
-        use_gpu=(args.device.startswith("cuda")),
-        batch_size=args.scgen_batch_size,
-        early_stopping=False,
-    )
+    train_kwargs = {
+        "max_epochs": args.scgen_epochs,
+        "batch_size": args.scgen_batch_size,
+        "early_stopping": False,
+    }
+    # scGen 2.1.1 follows the current scvi-tools trainer API; older releases
+    # exposed the equivalent setting as ``use_gpu``.
+    if "use_gpu" in inspect.signature(scgen_model.train).parameters:
+        train_kwargs["use_gpu"] = args.device.startswith("cuda")
+    else:
+        train_kwargs["accelerator"] = "gpu" if args.device.startswith("cuda") else "cpu"
+        train_kwargs["devices"] = 1
+    scgen_model.train(**train_kwargs)
 
     # 2) Load PerturbDiff checkpoint.
     device = torch.device(args.device)
     state = torch.load(args.perturbdiff_checkpoint, map_location=device, weights_only=False)
-    pd_model = PerturbDiffusionModel(state["model_config"]).to(device)
+    pd_model = PerturbDiffusionModel(compatible_config_from_state(state)).to(device)
     pd_model.load_state_dict(state["model_state_dict"], strict=False)
     pd_model.eval()
     target_to_id: dict[str, int] = dict(state["perturbation_mapping"])

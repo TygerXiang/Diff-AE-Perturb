@@ -82,19 +82,23 @@ class PerturbationModule(nn.Module):
         z_sem: torch.Tensor,
         perturbation_ids: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
+        """Return the per-perturbation latent offset and the basal latent.
+
+        This method used to also return ``z_pert = z_sem``, which made it look as though the
+        perturbation offset conditioned the denoiser when in fact it did not.  Building the
+        conditioning vector is the job of ``PerturbDiffusionModel.encode_condition``, which is
+        now the single place that defines ``z_pert``.
+        """
         delta_base = self.embedding(perturbation_ids)
         delta = delta_base
-        # During training z_sem already comes from an observed cell under its
-        # real perturbation, so we do not add delta again here. Instead we keep
-        # z_basal for optional regularizers and interpretation.
+        # z_basal is the latent with the perturbation offset removed; it is used by the
+        # optional semantic-alignment regulariser and for interpretation.
         z_basal = z_sem - delta
-        z_pert = z_sem
         return {
             "z_basal": z_basal,
             "z_sem": z_sem,
             "delta_base": delta_base,
             "delta": delta,
-            "z_pert": z_pert,
         }
 
     def counterfactual_latent(

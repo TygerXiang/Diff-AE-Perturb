@@ -70,6 +70,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--denoiser-hidden-dims", default="1024,1024")
     parser.add_argument("--diffusion-steps", type=int, default=1000)
     parser.add_argument("--prediction-type", choices=("eps", "x0"), default="x0")
+    parser.add_argument(
+        "--control-reference",
+        choices=("per_cell", "batch_mean", "encoder_self"),
+        default="per_cell",
+        help=(
+            "Control anchor for the counterfactual conditioning z_pert = z_control + delta. "
+            "'per_cell' pairs each perturbed cell with one control cell's latent and matches "
+            "the inference path exactly; 'batch_mean' uses the batch control mean (the original "
+            "behaviour) and also switches inference to a single mean control latent; "
+            "'encoder_self' is a legacy ablation that conditions on the cell's own encoding "
+            "(leaks the denoising target, leaves the offset untrained) -- keep only for A/B."
+        ),
+    )
     parser.add_argument("--reconstruction-loss", choices=("mse", "gears"), default="mse")
     parser.add_argument(
         "--autofocus-gamma",
@@ -388,6 +401,15 @@ def evaluate_model(
 
 def main() -> None:
     args = parse_args()
+    if args.prediction_type == "eps":
+        print(
+            "WARNING: --prediction-type eps with the current DDIM sampler is known to be "
+            "unusable: GaussianDiffusion.ddim_sample applies no clamping, so eps errors are "
+            "amplified by 1/sqrt(alpha_bar) (up to ~190x) and generated values blow up by "
+            "roughly two orders of magnitude. Measured on GSE132080: mse@100 84.2 vs 0.039 for "
+            "x0, generated range -530..473 vs 0..6.9 for the data. Use x0, or add a clip / "
+            "denoised_fn to ddim_sample first."
+        )
     torch.manual_seed(args.seed)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -482,6 +504,7 @@ def main() -> None:
         latent_dim=args.latent_dim,
         encoder_hidden_dims=parse_hidden_dims(args.encoder_hidden_dims),
         denoiser_hidden_dims=parse_hidden_dims(args.denoiser_hidden_dims),
+        control_reference=args.control_reference,
         diffusion=DiffusionConfig(
             timesteps=args.diffusion_steps,
             prediction_type=args.prediction_type,

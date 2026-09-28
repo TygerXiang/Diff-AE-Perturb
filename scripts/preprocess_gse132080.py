@@ -167,10 +167,28 @@ def main() -> None:
 
     X = adata.X.tocsr() if sparse.issparse(adata.X) else sparse.csr_matrix(adata.X)
     gene_cells = as_1d((X > 0).sum(axis=0))
-    non_mt_ribo = ~adata.var_names.str.upper().str.startswith(("MT-", "RPS", "RPL"))
-    gene_mask = (gene_cells >= args.min_cells_per_gene) & non_mt_ribo
+    # A gene that is itself perturbed must survive every gene filter, otherwise the model can
+    # never see the perturbation it is asked to predict.  Computing the protected set here (and
+    # not after the ribosomal filter) is what keeps RPS14/RPS15/RPS18/RPL9 in the panel; the old
+    # order dropped them and the later target retention could not put them back.
+    protected_targets = np.asarray(
+        adata.var_names.isin(
+            sorted(
+                {
+                    str(v)
+                    for v in adata.obs[args.clean_perturbation_col]
+                    if str(v) not in {"control", "*", ""}
+                }
+            )
+        )
+    )
+    non_mt_ribo = np.asarray(~adata.var_names.str.upper().str.startswith(("MT-", "RPS", "RPL")))
+    gene_mask = (gene_cells >= args.min_cells_per_gene) & (non_mt_ribo | protected_targets)
     adata = adata[:, gene_mask].copy()
-    print(f"after gene QC: {adata.n_obs} cells x {adata.n_vars} genes")
+    print(
+        f"after gene QC: {adata.n_obs} cells x {adata.n_vars} genes "
+        f"({int(protected_targets.sum())} perturbation target genes exempted from the MT/ribosomal filter)"
+    )
     adata.var_names_make_unique()
 
     adata.layers["counts"] = adata.X.copy()

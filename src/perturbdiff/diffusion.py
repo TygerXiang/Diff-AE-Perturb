@@ -108,6 +108,15 @@ class GaussianDiffusion(nn.Module):
         steps: int = 100,
         noise: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        """Deterministic DDIM sampling.
+
+        NOTE: this sampler applies **no clamping** -- with ``prediction_type="eps"`` the update
+        goes through ``x0 = (x_t - sqrt(1-a_bar) * eps) / sqrt(a_bar)``, and ``1/sqrt(a_bar)``
+        reaches ~190 at the highest noise level, so eps errors are amplified without bound.  In
+        practice eps-trained models with this sampler produce values hundreds of times too large
+        (measured: generated range -530..473 vs 0..6.9 for the data).  ``prediction_type="x0"``
+        is the supported configuration; if you need eps, add a clip/``denoised_fn`` here first.
+        """
         if steps < 1:
             raise ValueError("steps must be at least 1")
         device = z_cond.device

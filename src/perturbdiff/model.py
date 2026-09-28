@@ -139,58 +139,80 @@ class PerturbDiffusionModel(nn.Module):
         guide_features: torch.Tensor | None = None,
         guide_activity_targets: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
+        """Build every conditioning tensor the denoiser may consume.
+
+        The counterfactual re-parameterisation
+
+            z_pert = z_control + delta[perturbation]        (control cells keep their own z_sem)
+
+        is applied **unconditionally**.  It used to sit behind an early ``return`` that fired
+        whenever ``guide_doser is None``, which silently reduced the conditioning to
+        ``z_pert = z_sem = encoder(x0)`` for every target-only run: the denoiser then saw an
+        encoding of the very cell it had to denoise, so the per-perturbation offset never
+        reached it and was never trained (see reports/diffae_architecture_diagnosis.md).
+        Only the guide/activity branch is optional now.
+        """
         z_sem = self.encoder(x0)
         # The perturbation module returns several latent views because different
         # losses care about different interpretations of the same cell state.
         pert = self.perturbation(z_sem, perturbation_ids)
         guide_strength_loss = z_sem.new_zeros(())
-        if self.guide_doser is None:
-            pert["strength"] = None
-            pert["scaled_strength"] = None
-            pert["activity_embedding"] = None
-            pert["guide_strength_loss"] = guide_strength_loss
-            return {**pert}
+        strength = None
+        activity_value = None
+        activity_embedding = None
 
-        if guide_features is None:
-            strength = torch.ones(x0.shape[0], device=x0.device, dtype=x0.dtype)
-        else:
-            guide_features = guide_features.to(device=x0.device, dtype=x0.dtype)
-            if self.config.guide_encoder.activity_source == "direct":
-                if guide_features.ndim == 1:
-                    strength = guide_features
-                elif guide_features.ndim == 2 and guide_features.shape[1] >= 1:
-                    strength = guide_features[:, 0]
-                else:
-                    raise ValueError("direct activity mode expects guide_features with shape (batch,) or (batch, >=1)")
-                strength = strength.clamp_min(0.0)
+        if self.guide_doser is not None:
+            if guide_features is None:
+                strength = torch.ones(x0.shape[0], device=x0.device, dtype=x0.dtype)
             else:
-                if self.guide_strength is None:
-                    raise RuntimeError("guide_strength encoder is required for predicted activity mode")
-                strength = self.guide_strength(guide_features)
+                guide_features = guide_features.to(device=x0.device, dtype=x0.dtype)
+                if self.config.guide_encoder.activity_source == "direct":
+                    if guide_features.ndim == 1:
+                        strength = guide_features
+                    elif guide_features.ndim == 2 and guide_features.shape[1] >= 1:
+                        strength = guide_features[:, 0]
+                    else:
+                        raise ValueError("direct activity mode expects guide_features with shape (batch,) or (batch, >=1)")
+                    strength = strength.clamp_min(0.0)
+                else:
+                    if self.guide_strength is None:
+                        raise RuntimeError("guide_strength encoder is required for predicted activity mode")
+                    strength = self.guide_strength(guide_features)
             if self.config.guide_encoder.lambda_strength > 0 and guide_activity_targets is not None:
                 target_strength = guide_activity_targets.to(device=x0.device, dtype=x0.dtype).clamp_min(0.0)
                 guide_strength_loss = torch.nn.functional.mse_loss(strength, target_strength)
 
-        activity_ids = target_ids if target_ids is not None else perturbation_ids
-        activity_value = self.guide_doser(strength, activity_ids)
-        if bool(getattr(self.config.guide_encoder, "activity_scales_delta", False)):
+            activity_ids = target_ids if target_ids is not None else perturbation_ids
+            activity_value = self.guide_doser(strength, activity_ids)
+            activity_embedding = self._build_activity_embedding(activity_value, perturbation_ids)
+
+        if activity_value is not None and bool(
+            getattr(self.config.guide_encoder, "activity_scales_delta", False)
+        ):
             pert["delta"] = pert["delta_base"] * activity_value.unsqueeze(-1)
         else:
             pert["delta"] = pert["delta_base"]
+
         pert["z_basal"] = z_sem - pert["delta"]
         z_control = self._build_control_anchor(z_sem, pert["delta"], perturbation_ids)
         pert["z_control"] = z_control
-        pert["z_pert"] = torch.where(
-            perturbation_ids.unsqueeze(-1) == 0,
-            z_sem,
-            z_control + pert["delta"],
-        )
+        if str(getattr(self.config, "control_reference", "per_cell")) == "encoder_self":
+            # Legacy ablation only.  This conditions the denoiser on the encoding of the very
+            # cell it has to denoise, so the perturbation offset never reaches it and is never
+            # trained; it is what produced the delta-correlation ~0.03 checkpoint.  Kept as an
+            # explicit, named mode so the failure stays reproducible and testable.
+            pert["z_pert"] = z_sem
+        else:
+            # Control cells condition on their own latent; every perturbed cell conditions on a
+            # control-anchored latent shifted by its perturbation offset.
+            pert["z_pert"] = torch.where(
+                perturbation_ids.unsqueeze(-1) == 0,
+                z_sem,
+                z_control + pert["delta"],
+            )
         pert["strength"] = strength
         pert["scaled_strength"] = activity_value
-        pert["activity_embedding"] = self._build_activity_embedding(
-            pert["scaled_strength"],
-            perturbation_ids,
-        )
+        pert["activity_embedding"] = activity_embedding
         pert["guide_strength_loss"] = guide_strength_loss
         return {**pert}
 
@@ -213,10 +235,29 @@ class PerturbDiffusionModel(nn.Module):
         delta: torch.Tensor,
         perturbation_ids: torch.Tensor,
     ) -> torch.Tensor:
+        """Anchor every perturbed cell to a control state in latent space.
+
+        ``config.control_reference`` decides how, and it must match the inference path
+        (``sample_counterfactual``) or the denoiser is asked to extrapolate:
+
+        ``per_cell``    each row is paired with one control cell's latent (deterministic
+                        round-robin, so runs are reproducible).  This is the default and it
+                        matches what inference does with a batch of control cells.
+        ``batch_mean``  every row shares the batch control mean, which is what the original
+                        implementation did.  Selecting it also switches inference to a single
+                        mean control latent so the two sides stay consistent.
+        """
+        reference = str(getattr(self.config, "control_reference", "per_cell"))
         control_mask = perturbation_ids == 0
-        if control_mask.any():
+        if reference in {"per_cell", "encoder_self"} and bool(control_mask.any()):
+            control_z = z_sem[control_mask]
+            indices = torch.arange(z_sem.shape[0], device=z_sem.device) % control_z.shape[0]
+            return control_z.index_select(0, indices)
+        if bool(control_mask.any()):
             control_mean = z_sem[control_mask].mean(dim=0, keepdim=True)
         else:
+            # No control cell in this batch: fall back to the offset-removed mean, which is
+            # the best available estimate of the basal state.
             control_mean = (z_sem - delta).mean(dim=0, keepdim=True)
         return control_mean.expand_as(z_sem)
 
@@ -391,10 +432,17 @@ class PerturbDiffusionModel(nn.Module):
             if activity_value is not None
             else None
         )
-        # Unlike training, inference starts from a chosen source cell and
-        # explicitly builds the target condition latent we want to generate.
+        # Unlike training, inference starts from chosen control cells and explicitly builds the
+        # target condition latent.  The control anchor must use the same convention as training
+        # (config.control_reference), otherwise the denoiser is fed an out-of-distribution
+        # conditioning vector.  "encoder_self" is a training-only ablation, so inference treats
+        # it like "per_cell" -- which is exactly what the legacy checkpoints were evaluated with.
+        if str(getattr(self.config, "control_reference", "per_cell")) == "batch_mean":
+            z_source = z_sem.mean(dim=0, keepdim=True).expand_as(z_sem)
+        else:
+            z_source = z_sem
         z_cf = self.perturbation.counterfactual_latent(
-            z_sem,
+            z_source,
             target_ids,
             source_ids=torch.zeros_like(target_ids),
             guide_scales=(

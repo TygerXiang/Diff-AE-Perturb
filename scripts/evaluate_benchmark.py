@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import replace
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -15,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from perturbdiff.data import CONTROL_PATTERNS, extract_target_label, is_control_label, load_guide_activity_lookup
+from perturbdiff.config import GuideFeatureEncoderConfig
 from perturbdiff.guide_features import (
     build_notebook_cnn_feature_tensor,
     canonical_guide_keys,
@@ -52,6 +54,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-level", choices=["target", "guide"], default="guide")
     parser.add_argument("--target-strategy", choices=["first_token", "raw"], default="first_token")
     parser.add_argument("--no-change", action="store_true", default=False)
+    parser.add_argument("--scgen", action="store_true", default=False)
+    parser.add_argument("--scgen-model-dir", type=Path, default=None)
+    parser.add_argument("--scgen-epochs", type=int, default=200)
+    parser.add_argument("--scgen-batch-size", type=int, default=128)
+    parser.add_argument("--scgen-n-hidden", type=int, default=800)
+    parser.add_argument("--scgen-n-latent", type=int, default=100)
+    parser.add_argument("--scgen-n-layers", type=int, default=2)
+    parser.add_argument("--scgen-dropout-rate", type=float, default=0.2)
     return parser.parse_args()
 
 
@@ -217,6 +227,13 @@ def evaluate_condition(
 def compatible_config_from_state(state: dict) -> object:
     cfg = state["model_config"]
     state_dict = state["model_state_dict"]
+    if not hasattr(cfg, "guide_encoder"):
+        cfg = replace(cfg, guide_encoder=GuideFeatureEncoderConfig())
+    if not hasattr(cfg, "control_reference"):
+        # Legacy checkpoints never trained the counterfactual path at all, so they carry no
+        # control-anchor convention.  Their inference always fed one control cell's latent per
+        # sample, so "per_cell" reproduces their historical numbers exactly.
+        cfg = replace(cfg, control_reference="per_cell")
     has_activity_condition = any(key.startswith("activity_condition.") for key in state_dict)
     if getattr(cfg.guide_encoder, "enabled", False):
         cfg = replace(
@@ -237,6 +254,47 @@ def load_model(path: Path, device: torch.device) -> tuple[PerturbDiffusionModel,
     model.eval()
     mapping = {str(key): int(value) for key, value in state["perturbation_mapping"].items()}
     return model, mapping
+
+
+def prepare_scgen_adata(adata, perturbation_col: str):
+    prepared = adata.copy()
+    prepared.obs["condition"] = prepared.obs[perturbation_col].astype(str)
+    prepared.obs["cell_type"] = "all_cells"
+    return prepared
+
+
+def load_or_train_scgen(args: argparse.Namespace, train, perturbation_col: str):
+    import scgen
+
+    scgen_train = prepare_scgen_adata(train, perturbation_col)
+    model_dir = args.scgen_model_dir
+    if model_dir is not None and (model_dir / "model.pt").exists():
+        model = scgen.SCGEN.load(str(model_dir), adata=scgen_train, accelerator="gpu" if args.device.startswith("cuda") else "cpu")
+        return model, "loaded"
+
+    scgen.SCGEN.setup_anndata(scgen_train, batch_key="condition", labels_key="cell_type")
+    model = scgen.SCGEN(
+        scgen_train,
+        n_hidden=args.scgen_n_hidden,
+        n_latent=args.scgen_n_latent,
+        n_layers=args.scgen_n_layers,
+        dropout_rate=args.scgen_dropout_rate,
+    )
+    train_kwargs = {
+        "max_epochs": args.scgen_epochs,
+        "batch_size": args.scgen_batch_size,
+        "early_stopping": False,
+    }
+    if "use_gpu" in inspect.signature(model.train).parameters:
+        train_kwargs["use_gpu"] = args.device.startswith("cuda")
+    else:
+        train_kwargs["accelerator"] = "gpu" if args.device.startswith("cuda") else "cpu"
+        train_kwargs["devices"] = 1
+    model.train(**train_kwargs)
+    if model_dir is not None:
+        model_dir.mkdir(parents=True, exist_ok=True)
+        model.save(str(model_dir), overwrite=True, save_anndata=False)
+    return model, "trained"
 
 
 def build_guide_features(labels: list[str], model: PerturbDiffusionModel, records_by_key: dict | None, sequence_length: int, activity_lookup: dict[str, float], device: torch.device) -> torch.Tensor | None:
@@ -428,6 +486,15 @@ def main() -> None:
     control_tensor_np = to_dense(test.X[control_indices]).astype(np.float32, copy=False)
     control_tensor = torch.from_numpy(control_tensor_np).to(torch.device(args.device))
 
+    scgen_model = None
+    scgen_status = None
+    scgen_control = None
+    if args.scgen:
+        scgen_model, scgen_status = load_or_train_scgen(args, train, args.perturbation_col)
+        scgen_control = test[control_indices].copy()
+        scgen_control.obs["condition"] = control_labels[0] if control_labels else "control"
+        scgen_control.obs["cell_type"] = "all_cells"
+
     train_set = set(str(label) for label in train_labels)
     train_targets = {
         extract_target_label(label, strategy=args.target_strategy)
@@ -474,6 +541,8 @@ def main() -> None:
         for name, checkpoint in zip(args.names, args.checkpoints)
     }
     method_names = list(args.names)
+    if args.scgen:
+        method_names.append("scgen")
     if args.no_change:
         method_names = ["no_change"] + method_names
 
@@ -529,6 +598,23 @@ def main() -> None:
                 common_degs_method=args.common_degs_method,
                 seed=args.seed + idx,
             )
+        if scgen_model is not None:
+            pred_scgen, _ = scgen_model.predict(
+                ctrl_key=control_labels[0] if control_labels else "control",
+                stim_key=condition,
+                adata_to_predict=scgen_control,
+            )
+            pred_scgen_cells = to_dense(pred_scgen.X).astype(np.float64, copy=False)
+            # Match the metric interface: each generated control is a cell.
+            row["scgen"] = evaluate_condition(
+                true_cells,
+                pred_scgen_cells,
+                control_cells,
+                gene_names,
+                max_metric_cells=args.max_metric_cells,
+                common_degs_method=args.common_degs_method,
+                seed=args.seed + idx,
+            )
         per_condition.append(row)
 
     summary = compute_summary(per_condition, method_names)
@@ -548,6 +634,11 @@ def main() -> None:
         "device": args.device,
         "checkpoints": [str(path) for path in args.checkpoints],
         "names": args.names,
+        "scgen": args.scgen,
+        "scgen_model_dir": None if args.scgen_model_dir is None else str(args.scgen_model_dir),
+        "scgen_model_status": scgen_status,
+        "scgen_epochs": args.scgen_epochs,
+        "scgen_batch_size": args.scgen_batch_size,
     }
     save_outputs(args.output_dir, args.output_prefix, config, summary, per_condition, method_names)
     print(json.dumps(summary, indent=2))
