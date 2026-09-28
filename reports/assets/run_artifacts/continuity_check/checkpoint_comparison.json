@@ -1,0 +1,74 @@
+[
+  {
+    "name": "historical_legacy_2a1fb63_200ep",
+    "ref_dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\benchmark_activity_branch_predicted_day10_200ep",
+    "new_dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\original_2a1fb63_200ep",
+    "ref_best_epoch": 193,
+    "new_best_epoch": 193,
+    "ref_best_val_loss": 0.05360658606514335,
+    "new_best_val_loss": 0.05360975721850991,
+    "epochs_bit_identical": 1,
+    "epochs_within_1e-6": 15,
+    "max_epoch_val_gap": 5.6853052228689194e-05,
+    "max_epoch_val_gap_epoch": 27,
+    "ref_test_metrics": {
+      "loss": 0.05452687107026577,
+      "diffusion_loss": 0.0464434796012938,
+      "eval_mse_loss": 0.0464434796012938,
+      "semantic_align_loss": 0.0,
+      "direction_align_loss": 0.0,
+      "guide_strength_loss": 0.08083391282707453
+    },
+    "new_test_metrics": {
+      "loss": 0.05455057276412845,
+      "diffusion_loss": 0.04646733310073614,
+      "eval_mse_loss": 0.04646733310073614,
+      "semantic_align_loss": 0.0,
+      "direction_align_loss": 0.0,
+      "guide_strength_loss": 0.0808323947712779
+    },
+    "new_arch": {
+      "activity_condition": false,
+      "denoiser_in_width": [
+        1024,
+        1275
+      ]
+    }
+  },
+  {
+    "name": "historical_explicit_8179140_200ep",
+    "ref_dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\benchmark_activity_branch_predicted_day10_explicit_only_200ep",
+    "new_dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\current_worktree_200ep",
+    "ref_best_epoch": 193,
+    "new_best_epoch": 193,
+    "ref_best_val_loss": 0.05331907467916608,
+    "new_best_val_loss": 0.05327245173975825,
+    "epochs_bit_identical": 0,
+    "epochs_within_1e-6": 1,
+    "max_epoch_val_gap": 0.0005075652152299881,
+    "max_epoch_val_gap_epoch": 53,
+    "ref_test_metrics": {
+      "loss": 0.054336328990757465,
+      "diffusion_loss": 0.04625303717330098,
+      "eval_mse_loss": 0.04625303717330098,
+      "semantic_align_loss": 0.0,
+      "direction_align_loss": 0.0,
+      "guide_strength_loss": 0.08083291538059711
+    },
+    "new_test_metrics": {
+      "loss": 0.05423894012346864,
+      "diffusion_loss": 0.04615438496693969,
+      "eval_mse_loss": 0.04615438496693969,
+      "semantic_align_loss": 0.0,
+      "direction_align_loss": 0.0,
+      "guide_strength_loss": 0.08084555435925722
+    },
+    "new_arch": {
+      "activity_condition": true,
+      "denoiser_in_width": [
+        1024,
+        1291
+      ]
+    }
+  }
+]

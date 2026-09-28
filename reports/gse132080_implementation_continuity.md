@@ -136,9 +136,9 @@ worktree_noinit (当前,    无 delta init)      best_val = 0.053253   test = 0.
 
 ## 8. 训练曲线
 
-![continuity curves](../runs/continuity_check/continuity_curves.png)
+![continuity curves](assets/run_artifacts/continuity_check/continuity_curves.png)
 
-![zoom](../runs/continuity_check/continuity_curves_zoom.png)
+![zoom](assets/run_artifacts/continuity_check/continuity_curves_zoom.png)
 
 实线 = 历史 run，虚线 = 本次重跑；颜色区分三个族。同族曲线两两重合并与历史落在同一条带上，说明整条 200 epoch 曲线都对齐，而不只是某一个 epoch 凑巧接近。
 
@@ -169,16 +169,26 @@ torch.backends.cuda.matmul.allow_tf32 = False
 
 | 路径 | 内容 |
 | --- | --- |
-| `runs/continuity_check/original_2a1fb63_200ep/` | legacy 复现 run（B） |
-| `runs/continuity_check/cudnn_off_deterministic_200ep/` | legacy + cuDNN 关闭（C） |
-| `runs/continuity_check/explicit_8179140_true_200ep/` | explicit 复现 run（E） |
-| `runs/continuity_check/current_worktree_200ep/` | 当前工作树实现（F） |
-| `runs/continuity_check/*_repeat2_200ep/` | 各族第二次重复（噪声基准） |
-| `runs/continuity_check/determinism_cudnn_{on,off}_10ep/` | 非确定性定点探针 |
-| `runs/continuity_check/continuity_summary.csv` | 汇总表 |
-| `runs/continuity_check/continuity_history.csv` | 逐 epoch 曲线数据 |
-| `runs/continuity_check/continuity_curves*.png` | 训练曲线 |
-| `runs/continuity_check/continuity_summary.json` | 噪声基准与效应量 |
-| `reproducibility/continuity_check/` | `2a1fb63` 代码快照（git worktree）+ 全部脚本 |
-| `reproducibility/explicit_8179140/` | `8179140` 代码快照（git worktree） |
+| `reports/assets/run_artifacts/continuity_check/continuity_summary.csv` | 汇总表 |
+| `reports/assets/run_artifacts/continuity_check/continuity_history.csv` | 逐 epoch 曲线数据 |
+| `reports/assets/run_artifacts/continuity_check/continuity_curves*.png` | 训练曲线 |
+| `reports/assets/run_artifacts/continuity_check/continuity_summary.json` | 噪声基准与效应量 |
+| `reports/assets/run_artifacts/continuity_check/determinism_analysis.json`、`checkpoint_comparison.json` | 非确定性定点探针与 checkpoint 对比 |
+| `reproducibility/continuity_check_analysis/` | 本页全部分析脚本（`build_*.py`、`write_continuity_report.py`、`run_repeats.ps1`、`run_determinism_probe.ps1`） |
+
+> **2026-09-28 清理**。本节原先列出的 14 个复现 run（`continuity_check` 运行目录，约 1.0 GB）以及
+> `reproducibility/continuity_check/`、`reproducibility/explicit_8179140/` 两个 git worktree 代码快照**已删除**：
+> 两个快照只是本仓库 commit `2a1fb63` / `8179140` 的检出（可随时重建），而这次调查的结论已被 2026-09-28
+> 的条件接口诊断（`reports/diffae_architecture_diagnosis.md`）取代。上表的汇总产物（< 1 MB）全部保留。
+> 需要重跑这些 run 时：
+>
+> ```powershell
+> git worktree add reproducibility/continuity_check 2a1fb63    # legacy 代码快照
+> git worktree add reproducibility/explicit_8179140 8179140    # explicit 代码快照
+> ```
+>
+> 然后修改 `reproducibility/continuity_check_analysis/run_repeats.ps1` 与 `run_determinism_probe.ps1` 顶部的
+> `$py` / `$d`：它们实测时指向已删除的 `diff-project`（含其项目内 conda 环境
+> `diff-project\.conda\envs\perturbdiff-gse132080`），需要改成当前仓库路径与可用环境。
+> 清理策略与复现命令见 `docs/runs_retention.md`。
 

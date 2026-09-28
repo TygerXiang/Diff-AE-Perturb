@@ -1,0 +1,329 @@
+{
+  "runs": [
+    {
+      "label": "A_historical_legacy",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\benchmark_activity_branch_predicted_day10_200ep",
+      "family": "legacy",
+      "origin": "historical",
+      "denoiser_in": 1275,
+      "activity_condition": false,
+      "n_keys": 44,
+      "best_epoch": 193,
+      "best_val_loss": 0.05360658606514335,
+      "test_loss": 0.05452687107026577,
+      "test_eval_mse": 0.0464434796012938,
+      "test_strength": 0.08083391282707453
+    },
+    {
+      "label": "B_legacy_repro1",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\original_2a1fb63_200ep",
+      "family": "legacy",
+      "origin": "rerun",
+      "denoiser_in": 1275,
+      "activity_condition": false,
+      "n_keys": 44,
+      "best_epoch": 193,
+      "best_val_loss": 0.05360975721850991,
+      "test_loss": 0.05455057276412845,
+      "test_eval_mse": 0.04646733310073614,
+      "test_strength": 0.0808323947712779
+    },
+    {
+      "label": "C_legacy_cudnn_off",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\cudnn_off_deterministic_200ep",
+      "family": "legacy",
+      "origin": "rerun",
+      "denoiser_in": 1275,
+      "activity_condition": false,
+      "n_keys": 44,
+      "best_epoch": 193,
+      "best_val_loss": 0.05356555990874767,
+      "test_loss": 0.05453414982184768,
+      "test_eval_mse": 0.046450769528746605,
+      "test_strength": 0.0808337964117527
+    },
+    {
+      "label": "D_historical_explicit",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\benchmark_activity_branch_predicted_day10_explicit_only_200ep",
+      "family": "explicit",
+      "origin": "historical",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.05331907467916608,
+      "test_loss": 0.054336328990757465,
+      "test_eval_mse": 0.04625303717330098,
+      "test_strength": 0.08083291538059711
+    },
+    {
+      "label": "E_explicit_repro1",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\explicit_8179140_true_200ep",
+      "family": "explicit",
+      "origin": "rerun",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.053289451636374,
+      "test_loss": 0.054336844477802515,
+      "test_eval_mse": 0.04625322902575135,
+      "test_strength": 0.08083615452051163
+    },
+    {
+      "label": "F_worktree_noinit_repro1",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\current_worktree_200ep",
+      "family": "worktree_noinit",
+      "origin": "rerun",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.05327245173975825,
+      "test_loss": 0.05423894012346864,
+      "test_eval_mse": 0.04615438496693969,
+      "test_strength": 0.08084555435925722
+    },
+    {
+      "label": "G_legacy_repro2",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\legacy_2a1fb63_repeat2_200ep",
+      "family": "legacy",
+      "origin": "rerun",
+      "denoiser_in": 1275,
+      "activity_condition": false,
+      "n_keys": 44,
+      "best_epoch": 193,
+      "best_val_loss": 0.05355603201314807,
+      "test_loss": 0.054498717188835144,
+      "test_eval_mse": 0.04641559021547437,
+      "test_strength": 0.08083127159625292
+    },
+    {
+      "label": "H_explicit_repro2",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\explicit_8179140_repeat2_200ep",
+      "family": "explicit",
+      "origin": "rerun",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.05326815415173769,
+      "test_loss": 0.05430153850466013,
+      "test_eval_mse": 0.04621792444959283,
+      "test_strength": 0.08083613496273756
+    },
+    {
+      "label": "I_worktree_noinit_repro2",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\current_worktree_repeat2_200ep",
+      "family": "worktree_noinit",
+      "origin": "rerun",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.05322963697835803,
+      "test_loss": 0.05424995953217149,
+      "test_eval_mse": 0.04616572195664048,
+      "test_strength": 0.08084236737340689
+    },
+    {
+      "label": "J_legacy_repro3",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\legacy_2a1fb63_support3_200ep",
+      "family": "legacy",
+      "origin": "rerun",
+      "denoiser_in": 1275,
+      "activity_condition": false,
+      "n_keys": 44,
+      "best_epoch": 193,
+      "best_val_loss": 0.053608658257871866,
+      "test_loss": 0.05454868730157614,
+      "test_eval_mse": 0.04646548302844167,
+      "test_strength": 0.08083204180002213
+    },
+    {
+      "label": "K_explicit_repro3",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\explicit_8179140_support3_200ep",
+      "family": "explicit",
+      "origin": "rerun",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.05331745743751526,
+      "test_loss": 0.05432698177173734,
+      "test_eval_mse": 0.04624352836981416,
+      "test_strength": 0.08083452749997377
+    },
+    {
+      "label": "L_worktree_noinit_repro3",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\worktree_support3_200ep",
+      "family": "worktree_noinit",
+      "origin": "rerun",
+      "denoiser_in": 1291,
+      "activity_condition": true,
+      "n_keys": 46,
+      "best_epoch": 193,
+      "best_val_loss": 0.05325553147122264,
+      "test_loss": 0.054253099486231804,
+      "test_eval_mse": 0.04616863839328289,
+      "test_strength": 0.08084461279213428
+    },
+    {
+      "label": "M_legacy_mislabeled",
+      "dir": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\legacy_2a1fb63_mislabeled_run_D",
+      "family": "legacy",
+      "origin": "rerun",
+      "denoiser_in": 1275,
+      "activity_condition": false,
+      "n_keys": 44,
+      "best_epoch": 193,
+      "best_val_loss": 0.05356491729617119,
+      "test_loss": 0.05453665181994438,
+      "test_eval_mse": 0.046453360468149185,
+      "test_strength": 0.08083291351795197
+    }
+  ],
+  "families": {
+    "legacy": "legacy delta-scaling (activity multiplies delta, no explicit channel)",
+    "explicit": "explicit 16-d activity channel, scGen delta init",
+    "worktree_noinit": "explicit 16-d activity channel, no delta init"
+  },
+  "noise_band": {
+    "legacy": {
+      "n": 6,
+      "best_val_min": 0.05355603201314807,
+      "best_val_max": 0.05360975721850991,
+      "best_val_spread": 5.372520536184311e-05,
+      "test_min": 0.054498717188835144,
+      "test_max": 0.05455057276412845,
+      "test_spread": 5.1855575293302536e-05
+    },
+    "explicit": {
+      "n": 4,
+      "best_val_min": 0.05326815415173769,
+      "best_val_max": 0.05331907467916608,
+      "best_val_spread": 5.0920527428388596e-05,
+      "test_min": 0.05430153850466013,
+      "test_max": 0.054336844477802515,
+      "test_spread": 3.530597314238548e-05
+    },
+    "worktree_noinit": {
+      "n": 3,
+      "best_val_min": 0.05322963697835803,
+      "best_val_max": 0.05327245173975825,
+      "best_val_spread": 4.281476140022278e-05,
+      "test_min": 0.05423894012346864,
+      "test_max": 0.054253099486231804,
+      "test_spread": 1.4159362763166428e-05
+    }
+  },
+  "noise_floor": {
+    "best_val": 5.372520536184311e-05,
+    "test": 5.1855575293302536e-05
+  },
+  "family_means": {
+    "legacy": {
+      "best_val_loss": 0.05358525179326534,
+      "test_loss": 0.05453260832776626
+    },
+    "explicit": {
+      "best_val_loss": 0.053298534476198256,
+      "test_loss": 0.05432542343623936
+    },
+    "worktree_noinit": {
+      "best_val_loss": 0.053252540063112974,
+      "test_loss": 0.054247333047290645
+    }
+  },
+  "rerun_replicates": {
+    "legacy": {
+      "best_val": [
+        0.05355603201314807,
+        0.05356491729617119,
+        0.05356555990874767,
+        0.053608658257871866,
+        0.05360975721850991
+      ],
+      "test": [
+        0.054498717188835144,
+        0.05453414982184768,
+        0.05453665181994438,
+        0.05454868730157614,
+        0.05455057276412845
+      ]
+    },
+    "explicit": {
+      "best_val": [
+        0.05326815415173769,
+        0.053289451636374,
+        0.05331745743751526
+      ],
+      "test": [
+        0.05430153850466013,
+        0.05432698177173734,
+        0.054336844477802515
+      ]
+    },
+    "worktree_noinit": {
+      "best_val": [
+        0.05322963697835803,
+        0.05325553147122264,
+        0.05327245173975825
+      ],
+      "test": [
+        0.05423894012346864,
+        0.05424995953217149,
+        0.054253099486231804
+      ]
+    }
+  },
+  "paired_deltas": {
+    "arch (explicit-legacy)": {
+      "best_val": [
+        0.0002878778614103794,
+        0.0002754656597971916,
+        0.00024810247123241425
+      ],
+      "test": [
+        0.0001971786841750145,
+        0.00020716805011034012,
+        0.00019980734214186668
+      ]
+    },
+    "noinit (noinit-explicit)": {
+      "best_val": [
+        3.851717337965965e-05,
+        3.392016515135765e-05,
+        4.500569775700569e-05
+      ],
+      "test": [
+        6.259838119149208e-05,
+        7.70222395658493e-05,
+        8.374499157071114e-05
+      ]
+    }
+  },
+  "effects": [
+    {
+      "name": "architecture only (legacy -> explicit, both scGen init)",
+      "delta_best_val": -0.0002867173170670867,
+      "delta_test": -0.00020718489152690006,
+      "x_noise_val": -5.336737479848146,
+      "x_noise_test": -3.9954217141557633
+    },
+    {
+      "name": "delta init only (explicit -> worktree no-init)",
+      "delta_best_val": -4.599441308528185e-05,
+      "delta_test": -7.80903889487164e-05,
+      "x_noise_val": -0.8561049283200721,
+      "x_noise_test": -1.5059207907158683
+    },
+    {
+      "name": "original -> current (both changed)",
+      "delta_best_val": -0.00033271173015236855,
+      "delta_test": -0.00028527528047561646,
+      "x_noise_val": -6.192842408168218,
+      "x_noise_test": -5.501342504871632
+    }
+  ]
+}

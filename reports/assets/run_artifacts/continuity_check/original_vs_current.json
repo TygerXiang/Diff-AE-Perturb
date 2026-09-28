@@ -1,0 +1,150 @@
+{
+  "conditions": [
+    {
+      "title": "\u6761\u4ef6\u4e00 \u00b7 \u539f\u59cb\u5b9e\u73b0",
+      "subtitle": "code @ 2a1fb63 \u2014 activity \u7f29\u653e delta\uff08legacy\uff09\uff0cdenoiser \u8f93\u5165 1275\uff0cscGen delta \u521d\u59cb\u5316",
+      "denoiser_input_width": 1275,
+      "activity_condition": false,
+      "n_runs": 5,
+      "best_val_mean": 0.05358931869268417,
+      "best_val_min": 0.05355603201314807,
+      "best_val_max": 0.05360975721850991,
+      "test_mean": 0.054531799629330635,
+      "test_min": 0.054498717188835144,
+      "test_max": 0.05455057276412845,
+      "runs": [
+        {
+          "label": "A \u5386\u53f2 run 2026-07-20",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\benchmark_activity_branch_predicted_day10_200ep",
+          "in_width": 1275,
+          "n_keys": 44,
+          "has_cond": false,
+          "best_epoch": 193,
+          "best_val": 0.05360658606514335,
+          "test_loss": 0.05452687107026577,
+          "test_mse": 0.0464434796012938,
+          "test_strength": 0.08083391282707453
+        },
+        {
+          "label": "B \u590d\u73b0 run 1",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\original_2a1fb63_200ep",
+          "in_width": 1275,
+          "n_keys": 44,
+          "has_cond": false,
+          "best_epoch": 193,
+          "best_val": 0.05360975721850991,
+          "test_loss": 0.05455057276412845,
+          "test_mse": 0.04646733310073614,
+          "test_strength": 0.0808323947712779
+        },
+        {
+          "label": "C \u590d\u73b0 run 2 (cuDNN off)",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\cudnn_off_deterministic_200ep",
+          "in_width": 1275,
+          "n_keys": 44,
+          "has_cond": false,
+          "best_epoch": 193,
+          "best_val": 0.05356555990874767,
+          "test_loss": 0.05453414982184768,
+          "test_mse": 0.046450769528746605,
+          "test_strength": 0.0808337964117527
+        },
+        {
+          "label": "D \u590d\u73b0 run 3",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\legacy_2a1fb63_repeat2_200ep",
+          "in_width": 1275,
+          "n_keys": 44,
+          "has_cond": false,
+          "best_epoch": 193,
+          "best_val": 0.05355603201314807,
+          "test_loss": 0.054498717188835144,
+          "test_mse": 0.04641559021547437,
+          "test_strength": 0.08083127159625292
+        },
+        {
+          "label": "E \u590d\u73b0 run 4",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\legacy_2a1fb63_support3_200ep",
+          "in_width": 1275,
+          "n_keys": 44,
+          "has_cond": false,
+          "best_epoch": 193,
+          "best_val": 0.053608658257871866,
+          "test_loss": 0.05454868730157614,
+          "test_mse": 0.04646548302844167,
+          "test_strength": 0.08083204180002213
+        }
+      ]
+    },
+    {
+      "title": "\u6761\u4ef6\u4e8c \u00b7 \u5f53\u524d\u5b9e\u73b0",
+      "subtitle": "\u5f53\u524d\u5de5\u4f5c\u6811 \u2014 \u663e\u5f0f 16 \u7ef4 activity \u901a\u9053\uff0cdenoiser \u8f93\u5165 1291\uff0c\u65e0 delta \u521d\u59cb\u5316",
+      "denoiser_input_width": 1291,
+      "activity_condition": true,
+      "n_runs": 3,
+      "best_val_mean": 0.053252540063112974,
+      "best_val_min": 0.05322963697835803,
+      "best_val_max": 0.05327245173975825,
+      "test_mean": 0.054247333047290645,
+      "test_min": 0.05423894012346864,
+      "test_max": 0.054253099486231804,
+      "runs": [
+        {
+          "label": "F \u590d\u73b0 run 1",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\current_worktree_200ep",
+          "in_width": 1291,
+          "n_keys": 46,
+          "has_cond": true,
+          "best_epoch": 193,
+          "best_val": 0.05327245173975825,
+          "test_loss": 0.05423894012346864,
+          "test_mse": 0.04615438496693969,
+          "test_strength": 0.08084555435925722
+        },
+        {
+          "label": "G \u590d\u73b0 run 2",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\current_worktree_repeat2_200ep",
+          "in_width": 1291,
+          "n_keys": 46,
+          "has_cond": true,
+          "best_epoch": 193,
+          "best_val": 0.05322963697835803,
+          "test_loss": 0.05424995953217149,
+          "test_mse": 0.04616572195664048,
+          "test_strength": 0.08084236737340689
+        },
+        {
+          "label": "H \u590d\u73b0 run 3",
+          "path": "C:\\Users\\Admin\\myprojects\\Diff-AE-Perturb\\runs\\continuity_check\\worktree_support3_200ep",
+          "in_width": 1291,
+          "n_keys": 46,
+          "has_cond": true,
+          "best_epoch": 193,
+          "best_val": 0.05325553147122264,
+          "test_loss": 0.054253099486231804,
+          "test_mse": 0.04616863839328289,
+          "test_strength": 0.08084461279213428
+        }
+      ]
+    }
+  ],
+  "delta_best_val": -0.00033677862957119664,
+  "delta_best_val_pct": -0.6284435738071298,
+  "delta_test": -0.0002844665820399897,
+  "delta_test_pct": -0.5216526576668958,
+  "noise_band_best_val": 5.372520536184311e-05,
+  "noise_band_test": 5.1855575293302536e-05,
+  "paired_deltas": [
+    {
+      "d_best_val": -0.0003341343253850937,
+      "d_test": -0.0002879309467971325
+    },
+    {
+      "d_best_val": -0.00038012024015188217,
+      "d_test": -0.00030061323195695877
+    },
+    {
+      "d_best_val": -0.00031002843752503395,
+      "d_test": -0.00028105033561587334
+    }
+  ]
+}

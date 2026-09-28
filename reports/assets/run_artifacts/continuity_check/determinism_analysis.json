@@ -1,0 +1,27 @@
+{
+  "noise_floor": {
+    "best_val_loss_spread_across_original_realisations": 4.4197309762239456e-05,
+    "max_epoch_gap_range": [
+      5e-05,
+      7.5e-05
+    ]
+  },
+  "best_val_loss": {
+    "historical (2026-07-20)": {
+      "epoch": 193,
+      "val_loss": 0.05360658606514335
+    },
+    "rerun cuDNN on": {
+      "epoch": 193,
+      "val_loss": 0.05360975721850991
+    },
+    "rerun cuDNN off": {
+      "epoch": 193,
+      "val_loss": 0.05356555990874767
+    }
+  },
+  "first_divergence": {
+    "historical_vs_rerun_cudnn_on": 2,
+    "historical_vs_rerun_cudnn_off": 3
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "config": {
+    "test_path": "C:\\Users\\Admin\\myprojects\\diff-project\\reproducibility\\prepared\\splits\\gse132080_test.h5ad",
+    "target_checkpoint": "runs\\gse132080_zbasal_sdelta_diralign_nomargin_20ep\\checkpoint_best.pt",
+    "sgrna_checkpoint": "runs\\gse132080_sgrna_zbasal_sdelta_diralign_nomargin_20ep\\checkpoint_best.pt",
+    "guide_col": "guide_identity",
+    "target_col": "perturbation_label",
+    "control_label": "control",
+    "control_cells_used": 64,
+    "ddim_steps": 25,
+    "device": "cuda",
+    "thresholds": [
+      1,
+      5,
+      10
+    ],
+    "max_guides": 8
+  },
+  "summary": {
+    "all_guides": {
+      "n_guides": 8,
+      "target_level_mean_pearson_r2": 0.9773451056524143,
+      "sgrna_level_mean_pearson_r2": 0.9766457179239497,
+      "sgrna_minus_target_mean_pearson_r2": -0.0006993877284645622,
+      "target_level_mean_mse": 0.006608721339159268,
+      "sgrna_level_mean_mse": 0.006829898636818545,
+      "target_minus_sgrna_mean_mse": -0.00022117729765927692,
+      "sgrna_better_r2_guides": 3,
+      "sgrna_lower_mse_guides": 3
+    },
+    "guides_ge_5_cells": {
+      "n_guides": 8,
+      "target_level_mean_pearson_r2": 0.9773451056524143,
+      "sgrna_level_mean_pearson_r2": 0.9766457179239497,
+      "sgrna_minus_target_mean_pearson_r2": -0.0006993877284645622,
+      "target_level_mean_mse": 0.006608721339159268,
+      "sgrna_level_mean_mse": 0.006829898636818545,
+      "target_minus_sgrna_mean_mse": -0.00022117729765927692,
+      "sgrna_better_r2_guides": 3,
+      "sgrna_lower_mse_guides": 3
+    },
+    "guides_ge_10_cells": {
+      "n_guides": 7,
+      "target_level_mean_pearson_r2": 0.9777742241509088,
+      "sgrna_level_mean_pearson_r2": 0.9771927263202332,
+      "sgrna_minus_target_mean_pearson_r2": -0.0005814978306755147,
+      "target_level_mean_mse": 0.006473876630532467,
+      "sgrna_level_mean_mse": 0.006664028277815382,
+      "target_minus_sgrna_mean_mse": -0.00019015164728291428,
+      "sgrna_better_r2_guides": 3,
+      "sgrna_lower_mse_guides": 3
+    }
+  },
+  "per_guide": [
+    {
+      "guide": "ALDOA_ALDOA_+_30077139.23-P1P2_00",
+      "target": "ALDOA",
+      "n_test_cells": 8,
+      "target_level": {
+        "pearson_r": 0.9870872687675354,
+        "pearson_r2": 0.9743412761629526,
+        "mse": 0.007552634299546876
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9863146856606997,
+        "pearson_r2": 0.9728166591499648,
+        "mse": 0.007990991149840697
+      },
+      "sgrna_minus_target_r2": -0.0015246170129877834,
+      "target_minus_sgrna_mse": -0.0004383568502938206,
+      "target_gene_index": 769,
+      "target_gene_true_mean": 1.1875431537628174,
+      "target_gene_target_level_mean": 2.6056807041168213,
+      "target_gene_sgrna_level_mean": 2.694239377975464
+    },
+    {
+      "guide": "ALDOA_ALDOA_+_30077139.23-P1P2_06",
+      "target": "ALDOA",
+      "n_test_cells": 12,
+      "target_level": {
+        "pearson_r": 0.9871708519877116,
+        "pearson_r2": 0.9745062910141444,
+        "mse": 0.007582668434574135
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9864350691673814,
+        "pearson_r2": 0.9730541456832567,
+        "mse": 0.007981806868260263
+      },
+      "sgrna_minus_target_r2": -0.0014521453308877774,
+      "target_minus_sgrna_mse": -0.0003991384336861281,
+      "target_gene_index": 769,
+      "target_gene_true_mean": 1.3005459308624268,
+      "target_gene_target_level_mean": 2.6056807041168213,
+      "target_gene_sgrna_level_mean": 2.6904032230377197
+    },
+    {
+      "guide": "ALDOA_ALDOA_+_30077139.23-P1P2_07",
+      "target": "ALDOA",
+      "n_test_cells": 10,
+      "target_level": {
+        "pearson_r": 0.9818904909836867,
+        "pearson_r2": 0.9641089362841855,
+        "mse": 0.010328121438600566
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9811145372919576,
+        "pearson_r2": 0.9625857352856121,
+        "mse": 0.010844227900848028
+      },
+      "sgrna_minus_target_r2": -0.001523200998573393,
+      "target_minus_sgrna_mse": -0.0005161064622474613,
+      "target_gene_index": 769,
+      "target_gene_true_mean": 0.8658758997917175,
+      "target_gene_target_level_mean": 2.6056807041168213,
+      "target_gene_sgrna_level_mean": 2.6914730072021484
+    },
+    {
+      "guide": "ALDOA_ALDOA_+_30077139.23-P1P2_13",
+      "target": "ALDOA",
+      "n_test_cells": 12,
+      "target_level": {
+        "pearson_r": 0.9936200322591016,
+        "pearson_r2": 0.987280768506578,
+        "mse": 0.0036272882992528614
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9937270714086949,
+        "pearson_r2": 0.9874934924505013,
+        "mse": 0.003592626820815854
+      },
+      "sgrna_minus_target_r2": 0.00021272394392335414,
+      "target_minus_sgrna_mse": 3.4661478437007526e-05,
+      "target_gene_index": 769,
+      "target_gene_true_mean": 2.7433977127075195,
+      "target_gene_target_level_mean": 2.6056807041168213,
+      "target_gene_sgrna_level_mean": 2.6924948692321777
+    },
+    {
+      "guide": "ALDOA_ALDOA_+_30077139.23-P1P2_14",
+      "target": "ALDOA",
+      "n_test_cells": 11,
+      "target_level": {
+        "pearson_r": 0.986735137178614,
+        "pearson_r2": 0.9736462309428983,
+        "mse": 0.007988151212139806
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9857153785518574,
+        "pearson_r2": 0.9716348075136316,
+        "mse": 0.008532721483609748
+      },
+      "sgrna_minus_target_r2": -0.0020114234292666344,
+      "target_minus_sgrna_mse": -0.0005445702714699414,
+      "target_gene_index": 769,
+      "target_gene_true_mean": 1.3456698656082153,
+      "target_gene_target_level_mean": 2.6056807041168213,
+      "target_gene_sgrna_level_mean": 2.6989667415618896
+    },
+    {
+      "guide": "ATP5E_ATP5E_-_57607036.23-P1P2_00",
+      "target": "ATP5E",
+      "n_test_cells": 14,
+      "target_level": {
+        "pearson_r": 0.9904353656003128,
+        "pearson_r2": 0.9809622134318252,
+        "mse": 0.005505354339158208
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9902022542467447,
+        "pearson_r2": 0.9805005043153348,
+        "mse": 0.005653387283486431
+      },
+      "sgrna_minus_target_r2": -0.00046170911649046076,
+      "target_minus_sgrna_mse": -0.0001480329443282226,
+      "target_gene_index": 892,
+      "target_gene_true_mean": 1.6074869632720947,
+      "target_gene_target_level_mean": 3.1164512634277344,
+      "target_gene_sgrna_level_mean": 3.1560299396514893
+    },
+    {
+      "guide": "ATP5E_ATP5E_-_57607036.23-P1P2_01",
+      "target": "ATP5E",
+      "n_test_cells": 14,
+      "target_level": {
+        "pearson_r": 0.9890582901429302,
+        "pearson_r2": 0.9782363013004568,
+        "mse": 0.006217095303887384
+      },
+      "sgrna_level": {
+        "pearson_r": 0.9892829292678555,
+        "pearson_r2": 0.9786807141407888,
+        "mse": 0.0061379207638893145
+      },
+      "sgrna_minus_target_r2": 0.0004444128403320313,
+      "target_minus_sgrna_mse": 7.917453999806926e-05,
+      "target_gene_index": 892,
+      "target_gene_true_mean": 1.5339686870574951,
+      "target_gene_target_level_mean": 3.1164512634277344,
+      "target_gene_sgrna_level_mean": 3.158890724182129
+    },
+    {
+      "guide": "ATP5E_ATP5E_-_57607036.23-P1P2_04",
+      "target": "ATP5E",
+      "n_test_cells": 20,
+      "target_level": {
+        "pearson_r": 0.9928135915549672,
+        "pearson_r2": 0.9856788275762732,
+        "mse": 0.0040684573861143065
+      },
+      "sgrna_level": {
+        "pearson_r": 0.993176562778496,
+        "pearson_r2": 0.9863996848525077,
+        "mse": 0.0039055068237980255
+      },
+      "sgrna_minus_target_r2": 0.0007208572762344989,
+      "target_minus_sgrna_mse": 0.00016295056231628103,
+      "target_gene_index": 892,
+      "target_gene_true_mean": 2.0047621726989746,
+      "target_gene_target_level_mean": 3.1164512634277344,
+      "target_gene_sgrna_level_mean": 3.158996343612671
+    }
+  ],
+  "skipped_guides": []
+}

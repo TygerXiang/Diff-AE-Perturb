@@ -1,0 +1,55 @@
+{
+  "best_epoch": 1,
+  "best_val_loss": 0.0622280309908092,
+  "test_metrics": {
+    "loss": 0.061747272266075015,
+    "diffusion_loss": 0.061747272266075015,
+    "semantic_align_loss": 0.0,
+    "direction_align_loss": 0.0
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.10496173081238096,
+      "val_loss": 0.0622280309908092,
+      "val_diffusion_loss": 0.0622280309908092,
+      "val_semantic_align_loss": 0.0,
+      "val_direction_align_loss": 0.0
+    }
+  ],
+  "perturbation_init_counts": {
+    "counts": {
+      "0": 1687,
+      "1": 612,
+      "2": 346,
+      "3": 598,
+      "4": 932,
+      "5": 832,
+      "6": 438,
+      "7": 595,
+      "8": 565,
+      "9": 697,
+      "10": 650,
+      "11": 597,
+      "12": 553,
+      "13": 321,
+      "14": 422,
+      "15": 426,
+      "16": 580,
+      "17": 737,
+      "18": 429,
+      "19": 510,
+      "20": 671,
+      "21": 643,
+      "22": 413,
+      "23": 582,
+      "24": 461,
+      "25": 361,
+      "26": 5
+    }
+  },
+  "lambda_semantic_align": 0.0,
+  "lambda_direction_align": 0.0,
+  "direction_align_margin": 0.9,
+  "device": "cuda"
+}

@@ -103,7 +103,7 @@
 
 ## 5. 图
 
-![original vs current](../runs/continuity_check/original_vs_current.png)
+![original vs current](assets/run_artifacts/continuity_check/original_vs_current.png)
 
 左：两个条件所有独立运行的 validation loss 曲线（粗线为各条件首次运行的完整曲线）；右：每次独立运行的 best val loss 散点，可见两条件区间分离。
 
@@ -123,10 +123,13 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `runs/continuity_check/original_vs_current.csv` | 两条件逐次运行汇总表 |
-| `runs/continuity_check/original_vs_current.json` | 两条件统计量与配对差值 |
-| `runs/continuity_check/original_vs_current.png` | 对比图 |
-| `runs/continuity_check/original_2a1fb63_200ep/` | 条件一复现 run |
-| `runs/continuity_check/current_worktree_200ep/` | 条件二复现 run |
-| `reproducibility/continuity_check/` | `2a1fb63` 代码快照（git worktree）+ 脚本 |
+| `reports/assets/run_artifacts/continuity_check/original_vs_current.csv` | 两条件逐次运行汇总表 |
+| `reports/assets/run_artifacts/continuity_check/original_vs_current.json` | 两条件统计量与配对差值 |
+| `reports/assets/run_artifacts/continuity_check/original_vs_current.png` | 对比图 |
+| `reproducibility/continuity_check_analysis/` | 分析与汇总脚本 |
+
+> **2026-09-28 清理**。原先的两个复现 run（`continuity_check` 运行目录下的 `original_2a1fb63_200ep/`、
+> `current_worktree_200ep/`）与 `reproducibility/continuity_check/` 代码快照已删除（快照可用
+> `git worktree add reproducibility/continuity_check 2a1fb63` 重建）。上文表格里的数字来自保留下来的
+> `original_vs_current.{csv,json}`，未受影响。详见 `docs/runs_retention.md`。
 
