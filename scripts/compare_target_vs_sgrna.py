@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--test-path",
         type=Path,
-        default=Path(r"C:\Users\Admin\myprojects\diff-project\reproducibility\prepared\splits\gse132080_test.h5ad"),
+        default=REPO_ROOT / "reproducibility" / "prepared" / "splits" / "gse132080_test.h5ad",
     )
     parser.add_argument("--target-checkpoint", type=Path, required=True)
     parser.add_argument("--sgrna-checkpoint", type=Path, required=True)

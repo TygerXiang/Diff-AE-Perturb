@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-D = Path(r"C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM")
+D = Path(__file__).resolve().parents[1] / "datasets" / "GSE132080" / "41587_2019_387_MOESM3_ESM"
 
 def read_tsv(p):
     df = pd.read_csv(p, sep="\t", dtype=str)

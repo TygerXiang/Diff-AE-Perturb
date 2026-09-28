@@ -8,7 +8,8 @@
 ## 1. 数据来源
 
 ### GSE132080（Dixit et al. 2016, K562 CRISPRi Perturb-seq）
-`C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM\`
+`datasets/GSE132080/41587_2019_387_MOESM3_ESM/`（原记录为 `diff-project` 下同名目录，
+该仓库已删除，数据已复制到本仓库）
 
 | 文件 | 用途 |
 |---|---|

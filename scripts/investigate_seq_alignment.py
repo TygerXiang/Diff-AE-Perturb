@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-BASE = Path(r"C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM")
+BASE = Path(__file__).resolve().parents[1] / "datasets" / "GSE132080" / "41587_2019_387_MOESM3_ESM"
 S8 = BASE / "Table_S8_machine_learning_input.txt"
 
 TRANS = str.maketrans('ACGTN', 'TGCAN')

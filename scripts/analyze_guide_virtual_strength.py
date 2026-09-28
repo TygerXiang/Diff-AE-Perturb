@@ -32,34 +32,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--activity-table",
         type=Path,
-        default=Path(
-            r"C:\Users\Admin\myprojects\diff-project\datasets\GSE132080"
-            r"\41587_2019_387_MOESM3_ESM\Table_S16_perturb-seq_screen_phenotypes.txt"
-        ),
+        default=REPO_ROOT
+        / "datasets"
+        / "GSE132080"
+        / "41587_2019_387_MOESM3_ESM"
+        / "Table_S16_perturb-seq_screen_phenotypes.txt",
     )
     parser.add_argument(
         "--response-proxy-train",
         type=Path,
-        default=Path(
-            r"C:\Users\Admin\myprojects\diff-project\reproducibility\prepared"
-            r"\splits_response_proxy\gse132080_train.h5ad"
-        ),
+        default=REPO_ROOT / "reproducibility" / "prepared" / "splits_response_proxy" / "gse132080_train.h5ad",
     )
     parser.add_argument(
         "--response-proxy-val",
         type=Path,
-        default=Path(
-            r"C:\Users\Admin\myprojects\diff-project\reproducibility\prepared"
-            r"\splits_response_proxy\gse132080_val.h5ad"
-        ),
+        default=REPO_ROOT / "reproducibility" / "prepared" / "splits_response_proxy" / "gse132080_val.h5ad",
     )
     parser.add_argument(
         "--response-proxy-test",
         type=Path,
-        default=Path(
-            r"C:\Users\Admin\myprojects\diff-project\reproducibility\prepared"
-            r"\splits_response_proxy\gse132080_test.h5ad"
-        ),
+        default=REPO_ROOT / "reproducibility" / "prepared" / "splits_response_proxy" / "gse132080_test.h5ad",
     )
     parser.add_argument(
         "--output-dir",

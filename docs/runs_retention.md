@@ -102,10 +102,25 @@ python scripts/check_perturbdiff_import.py --strict   # 应只有本仓库一份
 
 ## 5. 已知未处理项
 
-1. `.pytest_cache/` 目录 ACL 异常（连 ACL 都读不到，`Remove-Item`/`rd` 均 Access denied），
+1. **GSE132080 的 prepared / splits 文件缺失**。删除 `diff-project` 时复制过来的是 `datasets/`（原始数据，
+   完整），但 `diff-project\reproducibility\prepared\` 下的 GSE132080 产物没有复制，
+   本仓库 `reproducibility/prepared/` 目前只有 `gse283614/`：
+
+   | 期望路径 | 生成脚本 |
+   | --- | --- |
+   | `reproducibility/prepared/gse132080_preprocessed.h5ad` | `python scripts/preprocess_gse132080.py` |
+   | `reproducibility/prepared/splits*/gse132080_{train,val,test}.h5ad` | `python scripts/create_h5ad_splits.py --input-h5ad <preprocessed> --output-dir ... --split-mode group --group-col guide_identity --split-seed 7` |
+   | `reproducibility/prepared/splits_response_proxy/gse132080_{train,val,test}.h5ad` | `python scripts/construct_response_proxy.py` |
+
+   **重生成前请注意**：`scripts/preprocess_gse132080.py` 已经在 2026-09-28 改成让受扰动靶基因豁免
+   MT/核糖体过滤（修复 `RPS14/RPS15/RPS18/RPL9` 被丢弃），因此重跑会得到 **1023** 基因面板，
+   而 `runs/` 里所有 GSE132080 checkpoint 是 **1019** 面板的——两者不能直接混用。
+   需要一个 1019 面板的文件时，用 benchmark 侧现存的 `perturbench/.scperturbench/inputs/gse132080_prep_fixed.h5ad`
+   （95 MB，1019 面板），或在预处理时显式关闭靶基因豁免。
+2. `.pytest_cache/` 目录 ACL 异常（连 ACL 都读不到，`Remove-Item`/`rd` 均 Access denied），
    疑似容器写入留下的目录。它已被 `.gitignore` 忽略，需要管理员权限才能删除：
    `takeown /f .pytest_cache /r` 后再删。
-2. GSE132080 的 `val` 与 `train` 仍是同一份文件（审计 S2）。本仓库没有改它，因为改划分等于换配方；
+3. GSE132080 的 `val` 与 `train` 仍是同一份文件（审计 S2）。本仓库没有改它，因为改划分等于换配方；
    做对比时请用末 epoch checkpoint 并记录，或按 guide 再切一个真正的 val。
-3. 本轮 A/B（`fix_x0_*` / `legacy_x0_*` / `fix_eps_*`）的 checkpoint 与分数在
+4. 本轮 A/B（`fix_x0_*` / `legacy_x0_*` / `fix_eps_*`）的 checkpoint 与分数在
    `perturbench/.scperturbench/`（该目录不在 git 下）。把这几份 benchmark 报告纳入版本控制仍是待办。

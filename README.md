@@ -31,19 +31,23 @@ sgRNA-level conditions for future strength modeling, use `--target-strategy raw`
 
 ## Quick Start
 
-The default training environment is the local CUDA environment
-`C:\Users\Admin\myprojects\diff-project\.conda\envs\perturbdiff-gse132080`.
-Use its `python.exe` for GPU training; the commands below assume the repository
-is checked out at `C:\Users\Admin\myprojects\Diff-AE-Perturb`:
+Dependencies are declared in `environment.yml` (conda env `perturbdiff-gse132080`,
+Python 3.10 + torch). Create it once:
 
 ```powershell
-$PerturbDiffPython = "C:\Users\Admin\myprojects\diff-project\.conda\envs\perturbdiff-gse132080\python.exe"
-& $PerturbDiffPython -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+conda env create -f environment.yml
+conda activate perturbdiff-gse132080
+python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
 ```
 
 The environment should report `True` and the installed NVIDIA GPU. Training
 scripts select CUDA automatically when available; pass `--device cuda` to make
-the choice explicit.
+the choice explicit. For CPU-only analysis any Python >= 3.9 with the
+`pyproject.toml` dependencies works.
+
+Installing the package is optional: every entry point (`scripts/*.py`,
+`tests/*.py`) prepends `src` to `sys.path` itself, and `pyproject.toml` sets
+`pythonpath = ["src"]` for pytest. If you do want it importable from anywhere:
 
 ```bash
 pip install -e ".[dev]"
@@ -108,10 +112,10 @@ GSE283614 stores gene expression and CRISPR guide-capture features in the same
 
 ```bash
 python scripts/preprocess_gse283614.py \
-  --data-root C:/Users/Admin/myprojects/diff-project/datasets/GSE283614 \
-  --gene-set-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-3.xlsx \
-  --table-s1-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-1.xlsx \
-  --log2fc-activity-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/1-s2.0-S2213671125001158-mmc2.xlsx \
+  --data-root datasets/GSE283614 \
+  --gene-set-workbook datasets/GSE283614/media-3.xlsx \
+  --table-s1-workbook datasets/GSE283614/media-1.xlsx \
+  --log2fc-activity-workbook datasets/GSE283614/1-s2.0-S2213671125001158-mmc2.xlsx \
   --output-dir reproducibility/prepared/gse283614
 ```
 
@@ -165,8 +169,8 @@ python scripts/analyze_gse283614_dosage.py \
   --checkpoint runs/gse283614_esc/checkpoint_best.pt \
   --activity-table runs/biological_validation/gse283614_observed/gse283614_tf_dosage.tsv \
   --activity-col knockdown_fraction \
-  --gene-set-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-3.xlsx \
-  --reference-dosage-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-4.xlsx \
+  --gene-set-workbook datasets/GSE283614/media-3.xlsx \
+  --reference-dosage-workbook datasets/GSE283614/media-4.xlsx \
   --output-dir runs/gse283614_esc/dosage
 ```
 
@@ -187,9 +191,9 @@ below 0.05.
 ```bash
 python scripts/analyze_gse283614_biology.py \
   --adata-path reproducibility/prepared/gse283614/gse283614_combined_assigned.h5ad \
-  --dosage-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-4.xlsx \
-  --guide-library-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-1.xlsx \
-  --gene-set-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-3.xlsx \
+  --dosage-workbook datasets/GSE283614/media-4.xlsx \
+  --guide-library-workbook datasets/GSE283614/media-1.xlsx \
+  --gene-set-workbook datasets/GSE283614/media-3.xlsx \
   --log2fc-activity-table reproducibility/prepared/gse283614/gse283614_log2fc_relative_activity.tsv \
   --output-dir runs/biological_validation/gse283614_observed \
   --bootstrap 1000
@@ -202,8 +206,8 @@ without writing the large h5ad split files:
 ```bash
 python scripts/create_gse283614_dose_cv.py \
   --adata-path reproducibility/prepared/gse283614/gse283614_combined_assigned.h5ad \
-  --dosage-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-4.xlsx \
-  --guide-library-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-1.xlsx \
+  --dosage-workbook datasets/GSE283614/media-4.xlsx \
+  --guide-library-workbook datasets/GSE283614/media-1.xlsx \
   --output-dir reproducibility/prepared/gse283614/dose_cv \
   --manifest-only
 ```

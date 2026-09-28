@@ -3,7 +3,7 @@
 import numpy as np, pandas as pd
 from pathlib import Path
 
-D = Path(r"C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM")
+D = Path(__file__).resolve().parents[1] / "datasets" / "GSE132080" / "41587_2019_387_MOESM3_ESM"
 def read_tsv(p):
     df = pd.read_csv(p, sep="\t", dtype=str)
     df = df.rename(columns={df.columns[0]: "guide_label"}).dropna(axis=1, how="all")
@@ -40,7 +40,7 @@ for pref in ["RAN_+_", "RPS15_-_"]:
         print("   ", sorted(hit["perfect match sgRNA"].unique())[:6])
 
 print("\n### GSE283614 supplementary xlsx files")
-G = Path(r"C:\Users\Admin\myprojects\diff-project\datasets\GSE283614")
+G = Path(__file__).resolve().parents[1] / "datasets" / "GSE283614"
 for p in sorted(G.glob("*.xlsx")):
     try:
         xl = pd.ExcelFile(p)

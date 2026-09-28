@@ -316,7 +316,7 @@ def main():
                        default=Path('results/integrated_sgrna_table.csv'),
                        help='Input integrated sgRNA table')
     parser.add_argument('--table-s8', type=Path,
-                       default=Path('../diff-project/datasets/GSE132080/41587_2019_387_MOESM3_ESM/Table_S8_machine_learning_input.txt'),
+                       default=Path(__file__).resolve().parents[1] / 'datasets' / 'GSE132080' / '41587_2019_387_MOESM3_ESM' / 'Table_S8_machine_learning_input.txt',
                        help='Path to Table S8')
     parser.add_argument('--output', type=Path,
                        default=Path('results/comprehensive_sgrna_analysis_table.csv'),

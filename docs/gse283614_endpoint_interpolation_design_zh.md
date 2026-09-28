@@ -83,12 +83,15 @@ knockdown_fraction = clip(1 - tf_remaining, 0, 1)
 ## 生成分割
 
 ```powershell
-C:\Users\Admin\myprojects\diff-project\.conda\envs\perturbdiff-gse132080\python.exe `
+python `
   scripts/create_gse283614_endpoint_split.py `
   --adata-path reproducibility/prepared/gse283614/gse283614_combined_assigned.h5ad `
-  --dosage-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-4.xlsx `
-  --guide-library-workbook C:/Users/Admin/myprojects/diff-project/datasets/GSE283614/media-1.xlsx `
+  --dosage-workbook datasets/GSE283614/media-4.xlsx `
+  --guide-library-workbook datasets/GSE283614/media-1.xlsx `
   --output-dir reproducibility/prepared/gse283614/endpoint_interpolation
 ```
+
+（`python` 指一个装好 `environment.yml` 依赖的解释器；原命令里写死的
+`diff-project\.conda\envs\perturbdiff-gse132080` 已随 `diff-project` 删除。）
 
 加入 `--manifest-only` 可只审计分割而不写出大型 `.h5ad` 文件。

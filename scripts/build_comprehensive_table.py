@@ -26,7 +26,7 @@ import pandas as pd
 from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parents[1]
-GSE132080_DIR = Path(r"C:\Users\Admin\myprojects\diff-project\datasets\GSE132080\41587_2019_387_MOESM3_ESM")
+GSE132080_DIR = WORKSPACE / "datasets" / "GSE132080" / "41587_2019_387_MOESM3_ESM"
 S8_PATH = GSE132080_DIR / "Table_S8_machine_learning_input.txt"
 S2_PATH = GSE132080_DIR / "Table_S2_large-scale_library_sequences_revised.txt"
 
