@@ -122,5 +122,17 @@ python scripts/check_perturbdiff_import.py --strict   # 应只有本仓库一份
    `takeown /f .pytest_cache /r` 后再删。
 3. GSE132080 的 `val` 与 `train` 仍是同一份文件（审计 S2）。本仓库没有改它，因为改划分等于换配方；
    做对比时请用末 epoch checkpoint 并记录，或按 guide 再切一个真正的 val。
-4. 本轮 A/B（`fix_x0_*` / `legacy_x0_*` / `fix_eps_*`）的 checkpoint 与分数在
-   `perturbench/.scperturbench/`（该目录不在 git 下）。把这几份 benchmark 报告纳入版本控制仍是待办。
+4. ~~本轮 A/B（`fix_x0_*` / `legacy_x0_*` / `fix_eps_*`）的 checkpoint 与分数在
+   `perturbench/.scperturbench/`（该目录不在 git 下）。把这几份 benchmark 报告纳入版本控制仍是待办。~~
+   **2026-09-30 已处理**：6 份 benchmark 报告已复制到 `reports/benchmark/`（字节一致）并纳入本仓库 git，
+   见该目录的 `README.md`。checkpoint 与逐条件产物仍在 `perturbench/.scperturbench/`。
+5. **不要把工作区切到旧分支来"看代码"。** 2026-09-30 00:59 工作区从
+   `codex/explicit-activity-condition-channel`（含 `reports/`、本次清理的全部成果）切到了
+   `codex/predicted-guide-activity-conditioning`（HEAD = `2a1fb63`，2026-09-17 之前的快照）。
+   因为 `reports/`、`docs/runs_retention.md`、`scripts/prune_runs.py` 等在 `2a1fb63` 里**根本不存在**，
+   切换时 git 把整个目录从工作树里删掉了（历史无损，`git checkout` 回来即恢复）。
+   要看旧分支请用独立 worktree，主检出保持不动：
+
+   ```powershell
+   git worktree add ..\Diff-AE-Perturb-old codex/predicted-guide-activity-conditioning
+   ```
