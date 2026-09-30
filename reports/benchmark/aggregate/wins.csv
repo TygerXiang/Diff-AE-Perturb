@@ -1,0 +1,5 @@
+method,wins
+fix_x0_batchmean,1
+gears,3
+linear_ridge,3
+scgen,3

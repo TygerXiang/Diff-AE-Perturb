@@ -9,6 +9,9 @@
 
 | 文件 | 内容 |
 | --- | --- |
+| **`external_methods_comparison.md`** | **只对四个外部方法（GEARS / scGen / CPA / Squidiff）的对比报告**，由 `scripts/build_external_comparison.py` 从 `aggregate/` 生成 |
+| `external_methods_comparison.csv` | 上表的机器可读版（method, metric_budget, value, rank_of_19, direction） |
+| `aggregate/` | 聚合表原始产物：`summary_wide.csv`（数值）、`rankings.csv`（19 方法 × 10 单元排名）、`report.md`（自动生成的 19 行报告）、`wins.csv`、`summary_stats.csv`、`summary_long.csv`、`excluded_methods.txt` |
 | `diffae_architecture_diagnosis.md` | 条件接口诊断：`delta` 从未进入 denoiser、尺度停在初始化值；1019 vs 1022 panel |
 | `diffae_conditioning_fix.md` | 四项修复（`z_pert=z_control+delta`、`control_reference`、x0 vs eps、靶基因保留）+ 干净 A/B |
 | `diffae_project_structure_audit.md` | 结构审计 S1–S10（重复文件、环境抢占、`runs/` 膨胀、未提交分叉） |
