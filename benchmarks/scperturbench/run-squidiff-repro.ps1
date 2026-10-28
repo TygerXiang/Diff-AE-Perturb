@@ -86,7 +86,7 @@ if ($TrainFresh) {
     Write-Host '=== 2. squidiff_repro: reuse the stable checkpoint, sample via sampler.pred ==='
     Invoke-InPodman -Name 'squidiff-repro' -CondaEnv 'squidiff' -Gpu -Command (
         "bash /root/perturbench/tools/run_squidiff_sampling_variants.sh $CheckpointDir " +
-        "> /root/perturbench/variants.log 2>&1"
+        "> /root/perturbench/.scperturbench/logs/squidiff_sampling_variants.log 2>&1"
     )
 }
 
