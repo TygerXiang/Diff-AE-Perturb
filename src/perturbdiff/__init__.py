@@ -8,6 +8,22 @@ from .data import (
     encode_perturbation_labels,
 )
 from .guide_features import GuideStrengthEncoder as GuideFeatureEncoder
+from .guide_activity import (
+    ActivityPrediction,
+    CRISPRiRuleSetPredictor,
+    FrozenActivityCalibrator,
+    GuideInput,
+    load_guide_input_lookup,
+    load_guide_score_lookup,
+    predict_activity_batch,
+)
+from .guide_predictor import (
+    CallableGuideActivityPredictor,
+    GuideActivityPredictor,
+    TorchFeaturePredictorAdapter,
+    make_guide_input,
+    predict_activity_tensor,
+)
 from .model import PerturbDiffusionModel
 
 # This distribution and `diff-project` both ship an import package called `perturbdiff`, and the
@@ -21,6 +37,18 @@ __all__ = [
     "DiffusionConfig",
     "GuideFeatureEncoder",
     "GuideFeatureEncoderConfig",
+    "GuideInput",
+    "ActivityPrediction",
+    "CRISPRiRuleSetPredictor",
+    "FrozenActivityCalibrator",
+    "load_guide_input_lookup",
+    "load_guide_score_lookup",
+    "predict_activity_batch",
+    "GuideActivityPredictor",
+    "CallableGuideActivityPredictor",
+    "TorchFeaturePredictorAdapter",
+    "make_guide_input",
+    "predict_activity_tensor",
     "ModelConfig",
     "PerturbationDataset",
     "PerturbDiffusionModel",

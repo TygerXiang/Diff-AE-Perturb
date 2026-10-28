@@ -33,6 +33,11 @@ from perturbdiff.guide_features import (
     guide_cnn_feature_dim,
     load_guide_feature_records,
 )
+from perturbdiff.guide_activity import (
+    CRISPRiRuleSetPredictor,
+    load_guide_input_lookup,
+    load_guide_score_lookup,
+)
 
 
 def parse_hidden_dims(value: str) -> tuple[int, ...]:
@@ -110,7 +115,31 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--guide-library-table", action="append", default=None, help="Mismatch library table(s) used to resolve each guide's fully matched sgRNA.")
     parser.add_argument("--activity-source", choices=("none", "predicted", "direct"), default="none")
+    parser.add_argument(
+        "--activity-predictor-backend",
+        choices=("table_s8_cnn", "crispri_ruleset", "external_score"),
+        default="table_s8_cnn",
+        help=(
+            "Activity backend. table_s8_cnn uses the legacy Table S8 26-mer CNN; "
+            "crispri_ruleset derives a sequence/TSS baseline from --external-activity-table; "
+            "external_score reads a precomputed score column from that table."
+        ),
+    )
     parser.add_argument("--guide-activity-cnn-table", default=None, help="Table_S8-style guide activity CNN input table.")
+    parser.add_argument(
+        "--external-activity-table",
+        default=None,
+        help=(
+            "Guide table for non-CNN activity backends. It may be the comprehensive "
+            "sgRNA CSV (guide_identity/guide_label/normalized label plus sequence/context columns) "
+            "or a compact guide-to-score TSV."
+        ),
+    )
+    parser.add_argument(
+        "--external-activity-col",
+        default="virtual_scale",
+        help="Numeric score column used by --activity-predictor-backend external_score.",
+    )
     parser.add_argument("--activity-table", default=None, help="Optional guide activity table for strength supervision.")
     parser.add_argument("--activity-col", default="relative_activity_day10")
     parser.add_argument("--guide-sequence-length", type=int, default=26)
@@ -233,6 +262,118 @@ def attach_predicted_activity_features(
     }
 
 
+def attach_external_activity_features(
+    dataset,
+    *,
+    backend: str,
+    external_activity_table: str | Path,
+    external_activity_col: str,
+    activity_lookup: dict[str, float] | None,
+) -> dict[str, object]:
+    """Attach one scalar activity feature per guide for a non-CNN backend."""
+
+    if backend not in {"crispri_ruleset", "external_score"}:
+        raise ValueError(f"Unsupported external activity backend: {backend!r}")
+    guide_records = (
+        load_guide_input_lookup(external_activity_table)
+        if backend == "crispri_ruleset"
+        else None
+    )
+    score_lookup = (
+        load_guide_score_lookup(external_activity_table, score_col=external_activity_col)
+        if backend == "external_score"
+        else None
+    )
+    labels = getattr(dataset, "activity_labels", None)
+    if labels is None:
+        raise ValueError("Dataset is missing activity_labels required for external activity features")
+
+    predictor = CRISPRiRuleSetPredictor() if backend == "crispri_ruleset" else None
+    feature_rows: list[np.ndarray] = []
+    activity_targets: list[float] = []
+    matched_feature_cells = 0
+    missing_feature_cells = 0
+    matched_activity_cells = 0
+    missing_activity_cells = 0
+    missing_labels: set[str] = set()
+    for pert_id, label in zip(dataset.perturbation_ids.tolist(), labels):
+        if int(pert_id) == 0:
+            # Controls must remain exactly zero; this also avoids applying a
+            # predictor to non-targeting sequences that have no genomic locus.
+            value = 0.0
+            feature_rows.append(np.asarray([value], dtype=np.float32))
+            activity_targets.append(value)
+            continue
+        guide = None
+        score = None
+        for key in canonical_guide_keys(str(label)):
+            if guide_records is not None:
+                guide = guide_records.get(key)
+            if score_lookup is not None:
+                score = score_lookup.get(key)
+            if guide is not None or score is not None:
+                break
+        if guide_records is not None and guide is None:
+            missing_feature_cells += 1
+            missing_labels.add(str(label))
+            value = 0.0
+        elif predictor is not None:
+            if guide is None or not guide.sequence.strip():
+                missing_feature_cells += 1
+                missing_labels.add(str(label))
+                value = 0.0
+                feature_rows.append(np.asarray([value], dtype=np.float32))
+                activity_targets.append(0.0)
+                continue
+            prediction = predictor.predict(guide)
+            value = float(prediction.normalized_score)
+            matched_feature_cells += 1
+        else:
+            if score is None or not np.isfinite(float(score)):
+                missing_feature_cells += 1
+                missing_labels.add(str(label))
+                value = 0.0
+            else:
+                value = float(score)
+                matched_feature_cells += 1
+        feature_rows.append(np.asarray([max(0.0, value)], dtype=np.float32))
+
+        if activity_lookup is None:
+            activity_targets.append(0.0)
+        else:
+            target_value = lookup_activity_for_label(str(label), activity_lookup)
+            if target_value is None:
+                activity_targets.append(0.0)
+                missing_activity_cells += 1
+            else:
+                activity_targets.append(float(target_value))
+                matched_activity_cells += 1
+
+    if missing_labels:
+        preview = ", ".join(sorted(missing_labels)[:10])
+        raise ValueError(
+            f"External activity table is missing usable records for "
+            f"{len(missing_labels)} non-control labels: {preview}"
+        )
+    dataset.guide_features = torch.from_numpy(np.stack(feature_rows, axis=0))
+    dataset.guide_activity_targets = (
+        torch.tensor(activity_targets, dtype=torch.float32)
+        if activity_lookup is not None
+        else None
+    )
+    return {
+        "mode": "predicted",
+        "backend": backend,
+        "feature_dim": 1,
+        "matched_feature_cells": matched_feature_cells,
+        "missing_feature_cells": missing_feature_cells,
+        "matched_activity_cells": matched_activity_cells,
+        "missing_activity_cells": missing_activity_cells,
+        "n_records": len(guide_records if guide_records is not None else score_lookup or {}),
+        "activity_supervision": activity_lookup is not None,
+    }
+
+
 def lookup_activity_for_label(label: str, activity_lookup: dict[str, float]) -> float | None:
     for key in canonical_guide_keys(str(label)):
         value = activity_lookup.get(key)
@@ -290,7 +431,10 @@ def prepare_activity_conditioning(
     datasets: list[object],
     *,
     activity_source: str,
+    activity_predictor_backend: str,
     guide_activity_cnn_table: str | None,
+    external_activity_table: str | None,
+    external_activity_col: str,
     activity_table: str | None,
     activity_col: str,
     sequence_length: int,
@@ -314,21 +458,37 @@ def prepare_activity_conditioning(
             "activity_table": activity_table,
             "guide_activity_cnn_table": None,
         }
-    if not guide_activity_cnn_table:
-        raise ValueError("Predicted activity mode requires --guide-activity-cnn-table")
     activity_lookup = (
         load_guide_activity_lookup(activity_table, activity_col=activity_col)
         if activity_table is not None
         else None
     )
-    summary = None
-    for dataset in datasets:
-        current = attach_predicted_activity_features(
+    if activity_predictor_backend == "table_s8_cnn":
+        if not guide_activity_cnn_table:
+            raise ValueError("Table S8 CNN activity mode requires --guide-activity-cnn-table")
+        attach = lambda dataset: attach_predicted_activity_features(
             dataset,
             guide_activity_cnn_table=guide_activity_cnn_table,
             sequence_length=sequence_length,
             activity_lookup=activity_lookup,
         )
+    elif activity_predictor_backend in {"crispri_ruleset", "external_score"}:
+        if not external_activity_table:
+            raise ValueError(
+                f"{activity_predictor_backend} activity mode requires --external-activity-table"
+            )
+        attach = lambda dataset: attach_external_activity_features(
+            dataset,
+            backend=activity_predictor_backend,
+            external_activity_table=external_activity_table,
+            external_activity_col=external_activity_col,
+            activity_lookup=activity_lookup,
+        )
+    else:
+        raise ValueError(f"Unsupported activity predictor backend: {activity_predictor_backend!r}")
+    summary = None
+    for dataset in datasets:
+        current = attach(dataset)
         if summary is None:
             summary = current
     if summary is None:
@@ -338,6 +498,8 @@ def prepare_activity_conditioning(
         "activity_col": activity_col if activity_lookup is not None else None,
         "activity_table": activity_table,
         "guide_activity_cnn_table": guide_activity_cnn_table,
+        "external_activity_table": external_activity_table,
+        "external_activity_col": external_activity_col if activity_predictor_backend == "external_score" else None,
     }
 
 
@@ -482,7 +644,10 @@ def main() -> None:
     conditioning_summary = prepare_activity_conditioning(
         base_datasets,
         activity_source=args.activity_source,
+        activity_predictor_backend=args.activity_predictor_backend,
         guide_activity_cnn_table=args.guide_activity_cnn_table,
+        external_activity_table=args.external_activity_table,
+        external_activity_col=args.external_activity_col,
         activity_table=args.activity_table,
         activity_col=args.activity_col,
         sequence_length=args.guide_sequence_length,
@@ -524,7 +689,7 @@ def main() -> None:
             explicit_condition=not args.disable_explicit_activity_condition,
             activity_condition_dim=args.activity_condition_dim,
             activity_scales_delta=args.enable_activity_delta_scaling,
-            architecture="mlp" if args.activity_source == "direct" else "cnn",
+            architecture="mlp" if args.activity_source == "direct" or args.activity_predictor_backend != "table_s8_cnn" else "cnn",
             hidden_dims=parse_hidden_dims(args.guide_strength_hidden_dims),
             dropout=args.guide_strength_dropout,
             sequence_length=args.guide_sequence_length,
@@ -532,6 +697,10 @@ def main() -> None:
             cnn_kernel_size=args.guide_strength_cnn_kernel_size,
             cnn_dropout=args.guide_strength_cnn_dropout,
             lambda_strength=args.guide_strength_lambda if args.activity_source == "predicted" and args.activity_table else 0.0,
+            predictor_backend=args.activity_predictor_backend,
+            external_predictor_source=args.activity_predictor_backend,
+            freeze_external_predictor=True,
+            use_genomic_context=True,
         ),
     )
     device = torch.device(args.device)
@@ -565,6 +734,21 @@ def main() -> None:
 
     with (output_dir / "perturbation_mapping.json").open("w", encoding="utf-8") as handle:
         json.dump(mapping, handle, indent=2, sort_keys=True)
+    with (output_dir / "activity_predictor_config.json").open("w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "backend": args.activity_predictor_backend,
+                "freeze_external_predictor": True,
+                "context_mode": "genome_context",
+                "external_activity_table": args.external_activity_table,
+                "external_activity_col": args.external_activity_col
+                if args.activity_predictor_backend == "external_score"
+                else None,
+            },
+            handle,
+            indent=2,
+            sort_keys=True,
+        )
 
     history: list[dict[str, float | int]] = []
     best_val = float("inf")

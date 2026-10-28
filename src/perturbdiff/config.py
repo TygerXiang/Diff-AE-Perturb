@@ -37,6 +37,10 @@ class GuideFeatureEncoderConfig:
     cnn_dropout: float = 0.25
     lambda_strength: float = 0.0
     doser_type: str = "sigm"
+    predictor_backend: str = "table_s8_cnn"
+    external_predictor_source: str | None = None
+    freeze_external_predictor: bool = True
+    use_genomic_context: bool = True
 
 
 @dataclass(frozen=True)

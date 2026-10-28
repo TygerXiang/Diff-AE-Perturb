@@ -229,6 +229,38 @@ class PerturbDiffusionModelTest(unittest.TestCase):
         )
         self.assertEqual(samples.shape, x0[:2].shape)
 
+    def test_external_activity_score_uses_scalar_calibration_and_zero_control(self) -> None:
+        torch.manual_seed(8)
+        cfg = ModelConfig(
+            n_genes=8,
+            n_perturbations=1,
+            latent_dim=4,
+            encoder_hidden_dims=(8,),
+            denoiser_hidden_dims=(16,),
+            guide_encoder=GuideFeatureEncoderConfig(
+                enabled=True,
+                feature_dim=1,
+                activity_source="predicted",
+                predictor_backend="external_score",
+                explicit_condition=True,
+                activity_condition_dim=3,
+                architecture="mlp",
+            ),
+        )
+        model = PerturbDiffusionModel(cfg)
+        self.assertIsNone(model.guide_strength)
+        x0 = torch.randn(2, cfg.n_genes)
+        ids = torch.tensor([0, 1])
+        condition = model.encode_condition(
+            x0,
+            ids,
+            target_ids=ids,
+            guide_features=torch.tensor([[0.0], [0.8]]),
+        )
+        self.assertEqual(float(condition["strength"][0]), 0.0)
+        self.assertGreater(float(condition["strength"][1]), 0.0)
+        self.assertTrue(torch.allclose(condition["activity_embedding"][0], torch.zeros(3)))
+
     def test_predicted_activity_is_explicit_denoiser_condition(self) -> None:
         torch.manual_seed(9)
         cfg = ModelConfig(

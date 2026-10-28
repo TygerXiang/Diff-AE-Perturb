@@ -6,6 +6,7 @@ from torch import nn
 from .config import ModelConfig
 from .diffusion import GaussianDiffusion
 from .guide_features import GuideStrengthEncoder
+from .guide_activity import FrozenActivityCalibrator
 from .losses import gears_autofocus_direction_loss, weighted_mse_loss
 from .modules import ConditionalDenoiserMLP, GeneralizedSigmoid, PerturbationModule, SemanticEncoder
 
@@ -16,6 +17,12 @@ class PerturbDiffusionModel(nn.Module):
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
         self.config = config
+        allowed_predictor_backends = {"table_s8_cnn", "crispri_ruleset", "external_score"}
+        if config.guide_encoder.predictor_backend not in allowed_predictor_backends:
+            raise ValueError(
+                "Unsupported guide activity predictor backend: "
+                f"{config.guide_encoder.predictor_backend!r}"
+            )
         self.encoder = SemanticEncoder(
             n_genes=config.n_genes,
             latent_dim=config.latent_dim,
@@ -31,6 +38,7 @@ class PerturbDiffusionModel(nn.Module):
                 raise ValueError("guide_encoder.feature_dim must be >= 1 when enabled")
             if config.guide_encoder.activity_source not in {"predicted", "direct"}:
                 raise ValueError("guide_encoder.activity_source must be 'predicted' or 'direct'")
+            use_external_score = config.guide_encoder.predictor_backend in {"crispri_ruleset", "external_score"}
             self.guide_strength = (
                 GuideStrengthEncoder(
                     feature_dim=config.guide_encoder.feature_dim,
@@ -42,16 +50,22 @@ class PerturbDiffusionModel(nn.Module):
                     cnn_kernel_size=config.guide_encoder.cnn_kernel_size,
                     cnn_dropout=config.guide_encoder.cnn_dropout,
                 )
-                if config.guide_encoder.activity_source == "predicted"
+                if config.guide_encoder.activity_source == "predicted" and not use_external_score
                 else None
             )
             self.guide_doser = GeneralizedSigmoid(
                 n_targets=config.n_perturbations,
                 non_linearity=config.guide_encoder.doser_type,
             )
+            self.activity_calibrator = (
+                FrozenActivityCalibrator()
+                if config.guide_encoder.predictor_backend in {"crispri_ruleset", "external_score"}
+                else None
+            )
         else:
             self.guide_strength = None
             self.guide_doser = None
+            self.activity_calibrator = None
         self.activity_condition_dim = (
             int(getattr(config.guide_encoder, "activity_condition_dim", 0))
             if config.guide_encoder.enabled
@@ -166,7 +180,8 @@ class PerturbDiffusionModel(nn.Module):
                 strength = torch.ones(x0.shape[0], device=x0.device, dtype=x0.dtype)
             else:
                 guide_features = guide_features.to(device=x0.device, dtype=x0.dtype)
-                if self.config.guide_encoder.activity_source == "direct":
+                use_external_score = self.config.guide_encoder.predictor_backend in {"crispri_ruleset", "external_score"}
+                if self.config.guide_encoder.activity_source == "direct" or use_external_score:
                     if guide_features.ndim == 1:
                         strength = guide_features
                     elif guide_features.ndim == 2 and guide_features.shape[1] >= 1:
@@ -174,6 +189,8 @@ class PerturbDiffusionModel(nn.Module):
                     else:
                         raise ValueError("direct activity mode expects guide_features with shape (batch,) or (batch, >=1)")
                     strength = strength.clamp_min(0.0)
+                    if self.activity_calibrator is not None:
+                        strength = self.activity_calibrator(strength)
                 else:
                     if self.guide_strength is None:
                         raise RuntimeError("guide_strength encoder is required for predicted activity mode")
@@ -414,7 +431,8 @@ class PerturbDiffusionModel(nn.Module):
                 strength = torch.ones(x_ctrl.shape[0], device=x_ctrl.device, dtype=x_ctrl.dtype)
             else:
                 guide_features = guide_features.to(device=x_ctrl.device, dtype=x_ctrl.dtype)
-                if self.config.guide_encoder.activity_source == "direct":
+                use_external_score = self.config.guide_encoder.predictor_backend in {"crispri_ruleset", "external_score"}
+                if self.config.guide_encoder.activity_source == "direct" or use_external_score:
                     if guide_features.ndim == 1:
                         strength = guide_features
                     elif guide_features.ndim == 2 and guide_features.shape[1] >= 1:
@@ -422,6 +440,8 @@ class PerturbDiffusionModel(nn.Module):
                     else:
                         raise ValueError("direct activity mode expects guide_features with shape (batch,) or (batch, >=1)")
                     strength = strength.clamp_min(0.0)
+                    if self.activity_calibrator is not None:
+                        strength = self.activity_calibrator(strength)
                 else:
                     if self.guide_strength is None:
                         raise RuntimeError("guide_strength encoder is required for predicted activity mode")
