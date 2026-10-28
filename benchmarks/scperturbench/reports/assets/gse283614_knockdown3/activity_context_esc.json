@@ -1,0 +1,88 @@
+{
+  "state": "esc",
+  "fold_set": "unspecified",
+  "activity_column": "relative_activity_ESC",
+  "activity_source": "reference-screen log2FC depletion (measured; not a prediction)",
+  "coverage": {
+    "n_evaluated": 33,
+    "n_measured": 25,
+    "n_unmeasured_written_as_zero": 8,
+    "excluded_by_min_test_cells": {},
+    "activity_distribution": {
+      "n": 25,
+      "mean": 0.5867962930417112,
+      "sd": 0.37227038630572057,
+      "min": 0.0,
+      "median": 0.5710860099660642,
+      "max": 1.0,
+      "n_zero": 3,
+      "n_unique": 20
+    }
+  },
+  "per_fold": [
+    {
+      "fold": 0,
+      "n_test_guides": 12,
+      "n_measured": 9,
+      "n_nonzero": 6,
+      "test_cells": 1464,
+      "min_test_cells": 99
+    },
+    {
+      "fold": 1,
+      "n_test_guides": 11,
+      "n_measured": 8,
+      "n_nonzero": 8,
+      "test_cells": 1172,
+      "min_test_cells": 54
+    },
+    {
+      "fold": 2,
+      "n_test_guides": 10,
+      "n_measured": 8,
+      "n_nonzero": 8,
+      "test_cells": 844,
+      "min_test_cells": 41
+    }
+  ],
+  "proxy_quality": {
+    "definition": "Spearman between measured screen relative activity and observed single-cell response magnitude (L2 from the guide mean to the state control mean), on held-out ground truth. Diagnostic only; never a model input.",
+    "overall": {
+      "spearman_rho": 0.574626081516844,
+      "p_value": 0.0026613802764316173,
+      "n": 25
+    },
+    "within_target": {
+      "NANOG": {
+        "n": 11,
+        "spearman_rho": 0.04100238428203847,
+        "p_value": 0.9047248643018937
+      },
+      "OCT4": {
+        "n": 14,
+        "spearman_rho": 0.7885481683836403,
+        "p_value": 0.000804260936528481
+      }
+    }
+  },
+  "cross_guide_separability": {
+    "n_guides": 33,
+    "n_controls": 1200,
+    "NANOG": {
+      "n_guides": 17,
+      "mean_guide_to_control_l2": 5.202096870712054,
+      "mean_pairwise_guide_l2": 3.905479635810691,
+      "min_pairwise_guide_l2": 2.04425369112807,
+      "max_pairwise_guide_l2": 7.962710905179102,
+      "guide_separation_ratio": 0.7507510399890182
+    },
+    "OCT4": {
+      "n_guides": 16,
+      "mean_guide_to_control_l2": 3.530604743162169,
+      "mean_pairwise_guide_l2": 4.689782029534287,
+      "min_pairwise_guide_l2": 1.8414896644379084,
+      "max_pairwise_guide_l2": 10.274521574291315,
+      "guide_separation_ratio": 1.3283225879694216
+    }
+  }
+}

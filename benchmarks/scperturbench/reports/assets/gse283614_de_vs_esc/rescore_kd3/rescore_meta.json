@@ -1,0 +1,32 @@
+{
+  "count_cap": 38,
+  "control_cap": 415,
+  "resample_seeds": [
+    11,
+    12,
+    13
+  ],
+  "variants": [
+    "full",
+    "count_matched",
+    "control_matched",
+    "stratum_matched",
+    "stratum_low",
+    "stratum_mid",
+    "stratum_high"
+  ],
+  "result_units": [
+    "de/fold_0/activity_off",
+    "de/fold_0/activity_on",
+    "de/fold_1/activity_off",
+    "de/fold_1/activity_on",
+    "de/fold_2/activity_off",
+    "de/fold_2/activity_on",
+    "esc/fold_0/activity_off",
+    "esc/fold_0/activity_on",
+    "esc/fold_1/activity_off",
+    "esc/fold_1/activity_on",
+    "esc/fold_2/activity_off",
+    "esc/fold_2/activity_on"
+  ]
+}

@@ -1,5 +1,10 @@
 # Agent Context
 
+> 2026-10-28: this file is a historical snapshot and still refers to the deleted
+> `C:\Users\Admin\myprojects\diff-project`. The current implementation is
+> `src/perturbdiff/`; the benchmark harness is `benchmarks/scperturbench/`.
+> See `README.md` for the current layout.
+
 This file is the actively maintained model context for this repository copy.
 It captures volatile implementation and runtime facts for the `341dae5`
 historical snapshot copied from `C:\Users\Admin\myprojects\diff-project`.

@@ -1,0 +1,151 @@
+{
+  "state": "de",
+  "activity_column": "relative_activity_DE",
+  "activity_source": "reference-screen log2FC depletion (measured; not a prediction)",
+  "pre_registered_by_the_prompt": false,
+  "targets": {
+    "n_evaluated": 31,
+    "n_measured": 19,
+    "n_unmeasured_written_as_zero": 12,
+    "n_excluded_by_min_test_cells": 2,
+    "excluded_conditions": {
+      "OCT4_1-37": 4,
+      "OCT4_1-38": 11
+    },
+    "extra_unmeasured": 2
+  },
+  "proxy_quality": {
+    "definition": "Spearman correlation between the measured screen relative activity and the observed single-cell response magnitude (L2 from the guide mean to the state control mean) of the same guide, on held-out ground truth. Never used as a model input; it only says how informative the proxy is.",
+    "overall": {
+      "spearman_rho": 0.33310044459980265,
+      "p_value": 0.163451151761221,
+      "n": 19
+    },
+    "within_target": {
+      "NANOG": {
+        "n": 7,
+        "spearman_rho": 0.48181205582971587,
+        "p_value": 0.27358684135530986
+      },
+      "OCT4": {
+        "n": 12,
+        "spearman_rho": 0.28072789026629646,
+        "p_value": 0.3767808388199453
+      }
+    }
+  },
+  "coverage_by_fold": {
+    "fold0": {
+      "n_test_guides": 7,
+      "n_measured": 5,
+      "n_unmeasured": 2,
+      "guide_type_counts": {
+        "promoter": 1,
+        "enhancer": 6
+      }
+    },
+    "fold1": {
+      "n_test_guides": 7,
+      "n_measured": 6,
+      "n_unmeasured": 1,
+      "guide_type_counts": {
+        "promoter": 1,
+        "enhancer": 6
+      }
+    },
+    "fold2": {
+      "n_test_guides": 5,
+      "n_measured": 1,
+      "n_unmeasured": 4,
+      "guide_type_counts": {
+        "promoter": 2,
+        "enhancer": 3
+      }
+    },
+    "fold3": {
+      "n_test_guides": 6,
+      "n_measured": 2,
+      "n_unmeasured": 4,
+      "guide_type_counts": {
+        "promoter": 2,
+        "enhancer": 4
+      }
+    },
+    "fold4": {
+      "n_test_guides": 6,
+      "n_measured": 5,
+      "n_unmeasured": 1,
+      "guide_type_counts": {
+        "promoter": 0,
+        "enhancer": 6
+      }
+    }
+  },
+  "activity_distribution": {
+    "n": 19,
+    "mean": 0.24269091493805392,
+    "sd": 0.3574250676145753,
+    "min": 0.0,
+    "median": 0.0,
+    "max": 1.0,
+    "n_zero": 10,
+    "n_unique": 9
+  },
+  "cross_guide_separability": {
+    "n_guides": 33,
+    "n_controls": 2000,
+    "NANOG": {
+      "n_guides": 17,
+      "mean_guide_to_control_l2": 4.337117059866722,
+      "mean_pairwise_guide_l2": 4.2253487660837035,
+      "min_pairwise_guide_l2": 2.4220092464193304,
+      "max_pairwise_guide_l2": 6.746584149849462,
+      "guide_separation_ratio": 0.9742298185084141,
+      "per_guide_to_control_l2": {
+        "NANOG-1-5": 4.308505462218082,
+        "NANOG-pro1": 1.7409356112771195,
+        "NANOG_1-23": 3.72723707702628,
+        "NANOG_1-3": 6.979989235073252,
+        "NANOG-pro4": 5.575327900434695,
+        "NANOG_1-1": 5.816604139674401,
+        "NANOG_1-6": 2.5968918208918543,
+        "NANOG_1-9": 5.255970309384121,
+        "NANOG-4-1": 3.984936977239278,
+        "NANOG-4-6": 5.080276886081214,
+        "NANOG-pro3": 3.134722716178196,
+        "NANOG-1-4": 4.776207668277454,
+        "NANOG-4-10": 2.386820244044186,
+        "NANOG-pro2": 5.764988620963628,
+        "NANOG-4-22": 4.061626572596862,
+        "NANOG_1-2": 5.450764382078032,
+        "NANOG_1-21": 3.089184394295637
+      }
+    },
+    "OCT4": {
+      "n_guides": 16,
+      "mean_guide_to_control_l2": 3.8746513598840027,
+      "mean_pairwise_guide_l2": 5.268595451830693,
+      "min_pairwise_guide_l2": 1.7831889548996018,
+      "max_pairwise_guide_l2": 14.999075259184883,
+      "guide_separation_ratio": 1.3597598757861977,
+      "per_guide_to_control_l2": {
+        "OCT4_1-17": 1.7751271049902546,
+        "OCT4_1-37": 14.792275860752031,
+        "OCT4_1-81": 2.9746176512436824,
+        "OCT4_1-83": 4.309359291955995,
+        "OCT4_1-21": 1.918117073920486,
+        "OCT4_1-46": 2.818561122960024,
+        "OCT4_1-62": 1.712380166204744,
+        "OCT4-pro2": 2.0883298121795555,
+        "OCT4_1-38": 8.529196925116894,
+        "OCT4_1-55": 1.731607380449778,
+        "OCT4-pro1": 5.956301113856466,
+        "OCT4_1-74": 2.2579003962646285,
+        "OCT4_1-78": 3.8821396287497167,
+        "OCT4_1-41": 1.9961820954023475,
+        "OCT4_1-47": 2.8784955228806037,
+        "OCT4_1-73": 2.3738306112168384
+      }
+    }
+  }
+}

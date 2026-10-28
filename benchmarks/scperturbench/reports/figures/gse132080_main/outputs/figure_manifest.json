@@ -1,0 +1,17 @@
+{
+  "dataset": "GSE132080",
+  "split": "unseen-guide/seen-target",
+  "held_out_conditions": 15,
+  "genes": 1019,
+  "seed": 7,
+  "source": "C:\\Users\\Admin\\myprojects\\perturbench\\.scperturbench\\results\\gse132080_6metrics\\gse132080\\aggregate",
+  "excluded": [
+    "all squidiff variants",
+    "fix_eps_* sampling failures"
+  ],
+  "figures": [
+    "gse132080_rank_heatmap",
+    "gse132080_vs_linear_ridge",
+    "gse132080_top1_wins"
+  ]
+}

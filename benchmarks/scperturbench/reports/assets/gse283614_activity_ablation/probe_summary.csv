@@ -1,0 +1,3 @@
+state,n_swaps,n_zero_delta_swaps,max_shift_on_zero_delta_swap,median_shift,median_between_guide,median_noise_floor,median_shift_over_between_guide,median_shift_over_noise_floor,n_swaps_above_noise_floor
+de,33,12,0.0,36.275226572204495,0.283266105632419,60.62802728062983,114.00894939278166,0.6007034203953103,5
+esc,33,8,0.0,23.31473513580337,0.2091700831614982,33.81430482693915,119.7572807251174,0.6894932560384625,11

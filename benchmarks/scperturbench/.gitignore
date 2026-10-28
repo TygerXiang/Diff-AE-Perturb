@@ -1,0 +1,13 @@
+.config/
+.local/
+.ssh/
+.podman/
+.podman-home/
+.scperturbench/
+logs/
+wheels/
+__pycache__/
+.pytest_cache/
+.tmp_docx_review/
+*.pt
+*.tar.gz

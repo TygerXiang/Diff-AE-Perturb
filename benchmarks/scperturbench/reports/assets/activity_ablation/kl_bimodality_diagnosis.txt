@@ -1,0 +1,37 @@
+=== per condition: literal vs floored sym-KL (activity_on arm) ===
+           n_cells  reported_log2  floored_log2       worst_gene  worst_share_pct  worst_gene_y_std  n_genes_zero_y_std
+condition                                                                                                              
+HSPA5          120          0.501         0.501             ASS1            7.011            0.3639                   0
+EIF2S1          73          1.036        0.9916               TF            8.238            0.2987                   0
+HSPA9           81          1.202         1.165            COTL1            7.314              0.35                   0
+GATA1           89          1.239         1.239          FILIP1L            4.587            0.8036                   0
+POLR1D         173          1.513         1.293            RGS16            6.392            0.3158                   0
+DUT            334          1.916         1.282        LINC00891            12.88           0.06795                   0
+CAD            312          2.067         1.372           BCYRN1            9.925            0.4402                   0
+GINS1          456          2.365         1.474          LGALS12            19.29             0.186                   0
+GNB2L1          28          2.886         1.878             BEX5            16.68            0.2258                   0
+TUBB           327          3.083         1.856     RP11-92G12.3            15.76            0.1569                   0
+RPS14          127             31         1.389            ISG20              100                 0                   1
+DBR1           610          32.03         1.222  XXbac-B135H6.15            64.72                 0                   3
+POLR2H         157          33.63         1.576           ICOSLG              100                 0                   1
+HSPE1          275          35.07         1.021            CREB5              100                 0                   1
+ALDOA          132          35.69         1.513            IGLL1            23.34                 0                  14
+
+=== cluster comparison (literal vs floored) ===
+         reported_log2_on  reported_log2_off  floored_log2_on  floored_log2_off  n_cells_on  worst_share_pct_on
+cluster                                                                                                        
+high                33.49              33.95            1.344              1.26       260.2               77.61
+low                 1.781              1.878            1.305             1.388       199.3               10.81
+
+=== does the cluster split explain the between-arm difference? ===
+        delta_reported        delta_floored        
+                  mean    std          mean     std
+cluster                                            
+high           -0.4648      1       0.08393 0.06859
+low           -0.09717 0.3756      -0.08269  0.3302
+
+overall mean literal delta : -0.2197
+overall mean floored delta : -0.0271
+conditions in the high cluster: ['ALDOA', 'DBR1', 'HSPE1', 'POLR2H', 'RPS14']
+their worst-gene share of the literal value: 77.6% (mean)
+low-cluster worst-gene share: 10.8% (mean)

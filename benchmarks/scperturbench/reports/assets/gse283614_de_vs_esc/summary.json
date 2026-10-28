@@ -1,0 +1,70 @@
+{
+  "claim": "the measured-activity channel reverses sign in DE vs ESC",
+  "primary_effect": {
+    "kd3_de_common_degs_pct": -16.256477435809767,
+    "kd3_de_common_degs_q": 0.0031460355967283,
+    "kd3_esc_common_degs_pct": 14.137816901010147,
+    "dose_cv_de_e_distance_pct": 5.697590043372773,
+    "dose_cv_de_e_distance_q": 0.0385993253439664,
+    "dose_cv_esc_pcc_delta_pct": 36.1772010592849
+  },
+  "baseline_absolute": {
+    "kd3_de_off_common_degs": 0.0915316584409726,
+    "kd3_esc_off_common_degs": 0.071853660446528
+  },
+  "probe": {
+    "esc": {
+      "design": "kd3",
+      "state": "esc",
+      "n_swaps": 21,
+      "n_changed": 17,
+      "n_identical_value_swaps": 4,
+      "max_shift_of_identical_swaps": 0.0,
+      "median_shift_changed": 24.65803654616887,
+      "median_noise_floor": 25.55511019771924,
+      "ratio_shift_over_noise": 0.964896506232619,
+      "n_hit_zero": 4,
+      "hit_zero_median_shift": 67.39079254286565,
+      "hit_zero_ratio": 2.6370769690079516,
+      "n_nonzero_swap": 13,
+      "nonzero_median_shift": 19.30131787554674,
+      "nonzero_ratio": 0.7552821226836015,
+      "n_exceed_noise_floor": 8,
+      "median_between_guide_l2": 0.2471682985489721,
+      "n_samples": 8
+    },
+    "de": {
+      "design": "kd3",
+      "state": "de",
+      "n_swaps": 21,
+      "n_changed": 14,
+      "n_identical_value_swaps": 7,
+      "max_shift_of_identical_swaps": 0.0,
+      "median_shift_changed": 45.40365020719005,
+      "median_noise_floor": 43.84212112128296,
+      "ratio_shift_over_noise": 1.0356170971196248,
+      "n_hit_zero": 3,
+      "hit_zero_median_shift": 37.33239903570792,
+      "hit_zero_ratio": 0.8515189977335536,
+      "n_nonzero_swap": 11,
+      "nonzero_median_shift": 45.53214464635779,
+      "nonzero_ratio": 1.0385479416107544,
+      "n_exceed_noise_floor": 8,
+      "median_between_guide_l2": 0.26408778903303703,
+      "n_samples": 4
+    }
+  },
+  "files": [
+    "state_parallel.csv",
+    "design_compare.csv",
+    "jackknife_folds.csv",
+    "common_guides.csv",
+    "deg_overlap.csv",
+    "per_target_bands.csv",
+    "selective_pressure.csv",
+    "selective_pressure_corr.csv",
+    "probe_compare.csv",
+    "probe_vs_harm.csv",
+    "curve_fits_de.csv"
+  ]
+}

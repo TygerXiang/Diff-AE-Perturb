@@ -247,6 +247,15 @@ samples = model.sample_counterfactual(
 )
 ```
 
+## Benchmarks
+
+The scPerturBench harness lives in `benchmarks/scperturbench/`: adapters for
+GEARS, scGen, CPA, Squidiff, PrimeFlow and the linear baselines, the six-metric
+scoring code, aggregation, diagnostic tools and the benchmark reports. Code and
+reports are versioned here; the large `.scperturbench` artifacts and Podman
+storage stay outside git under `SCPERTURBENCH_ROOT`. See
+`benchmarks/scperturbench/README.md` for the layout and run commands.
+
 ## Notes
 
 The code is written from scratch for this repository. It follows standard

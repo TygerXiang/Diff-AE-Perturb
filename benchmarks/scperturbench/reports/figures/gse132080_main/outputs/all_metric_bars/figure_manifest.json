@@ -1,0 +1,25 @@
+{
+  "dataset": "GSE132080",
+  "split": "unseen-guide/seen-target",
+  "conditions": 15,
+  "genes": 1019,
+  "seed": 7,
+  "source": "C:\\Users\\Admin\\myprojects\\perturbench\\.scperturbench\\results\\gse132080_6metrics\\gse132080\\aggregate\\summary_wide.csv",
+  "methods": {
+    "linear_ridge": "Linear Ridge",
+    "cpa": "CPA",
+    "scgen": "scGen",
+    "gears": "GEARS",
+    "fix_x0_percell": "Diff-AE"
+  },
+  "plotted_source_columns": [
+    "mse@all",
+    "pcc_delta@all",
+    "e_distance@all",
+    "kl_divergence@all",
+    "wasserstein@100",
+    "common_degs@cutoff"
+  ],
+  "budget_note": "MSE/PCC-delta/E-distance/KL use all genes; Wasserstein uses the protocol-defined 100-gene budget; Common-DEGs uses the protocol-defined DEG cutoff.",
+  "uncertainty": "single seed; no error bars"
+}

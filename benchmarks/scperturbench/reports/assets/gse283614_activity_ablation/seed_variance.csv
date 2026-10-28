@@ -1,0 +1,2 @@
+state,metric,n_seeds,n_guides,median_within_guide_between_seed_sd,between_guide_sd_of_seed_means,ratio_seed_over_guide
+esc,mse@100,3,33,0.005054728314778196,0.08300042477085444,0.06090002947253785
