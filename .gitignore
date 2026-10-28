@@ -30,3 +30,16 @@ reproducibility/prepared/
 *.bak
 Thumbs.db
 .DS_Store
+
+# Local-only tooling and vendored packages
+.vendor/azimuth/
+.tmp_test/
+docx_review/
+
+# Benchmark workspace runtime (see benchmarks/scperturbench/README.md)
+benchmarks/scperturbench/.scperturbench/
+benchmarks/scperturbench/.local/
+benchmarks/scperturbench/.config/
+benchmarks/scperturbench/.podman/
+benchmarks/scperturbench/logs/
+benchmarks/scperturbench/wheels/
